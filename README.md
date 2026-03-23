@@ -189,7 +189,7 @@ In `preflight.config.js` or under a `preflight` key in `package.json`:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `appId` | `""` (auto-detected from `app.json`) | Bundle identifier / application ID |
+| `appId` | `""` (auto-detected from `app.json`) | Bundle ID — string or `{ ios, android }` object |
 | `scheme` | `"preflight"` | Deep link scheme |
 | `screensDir` | `".maestro/screens"` | Generated Maestro YAML location |
 | `snapshotsDir` | `".maestro/snapshots"` | Screenshot baselines and diffs |
@@ -197,6 +197,23 @@ In `preflight.config.js` or under a `preflight` key in `package.json`:
 | `srcDir` | `""` (auto-detected) | Source directory for screen files |
 
 Generated YAML uses Maestro's `waitForAnimationToEnd` before each screenshot — no manual delay needed.
+
+### Multi-Platform appId
+
+iOS and Android often have different bundle identifiers. Use an object instead of a string:
+
+```json
+{
+  "preflight": {
+    "appId": {
+      "ios": "com.example.app.dev",
+      "android": "com.example.app.staging"
+    }
+  }
+}
+```
+
+Generates Maestro's native multi-platform `appId` format. A plain string still works for single-platform testing.
 
 ### E2E Mode
 

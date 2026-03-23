@@ -93,6 +93,19 @@ The appId must match the **development build** bundle identifier (the one runnin
 
 Add the confirmed appId to `package.json` under `"preflight": { "appId": "..." }` (only if not already set).
 
+**Multi-platform:** If iOS and Android have different bundle identifiers (common with EAS build profiles), use an object:
+```json
+{
+  "preflight": {
+    "appId": {
+      "ios": "com.company.app.dev",
+      "android": "com.company.app.staging"
+    }
+  }
+}
+```
+This generates Maestro's native multi-platform appId format. Ask the user if their iOS and Android IDs differ.
+
 ### 6. Persist srcDir in config
 If the detected srcDir is not the default `app/`, persist it in `package.json` under `"preflight": { "srcDir": "..." }` so that `generate` and `test` commands pick it up automatically.
 
