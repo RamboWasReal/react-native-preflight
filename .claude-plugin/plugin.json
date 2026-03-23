@@ -1,0 +1,5 @@
+{
+  "name": "react-native-preflight",
+  "description": "Maestro E2E testing for React Native — isolated screens, dev catalog, visual regression",
+  "version": "0.1.0"
+}

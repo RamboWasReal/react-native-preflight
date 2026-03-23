@@ -1,0 +1,23 @@
+appId: "com.preflight.example"
+tags:
+  - preflight
+  - "profile"
+---
+- openLink:
+    link: "preflight://scenario/profile"
+
+- assertVisible:
+    id: "profile"
+
+- assertVisible:
+    id: "profile-name"
+    text: "Jane Doe"
+
+- assertVisible:
+    id: "profile-email"
+    text: "jane@example.com"
+
+- assertVisible:
+    id: "profile-bio"
+
+- takeScreenshot: "profile/current"

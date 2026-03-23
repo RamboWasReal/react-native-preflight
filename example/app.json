@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "preflight-example",
+    "slug": "preflight-example",
+    "version": "1.0.0",
+    "scheme": ["preflight-example", "preflight"],
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.preflight.example"
+    },
+    "android": {
+      "package": "com.preflight.example"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.yarn/*
+!.yarn/releases
+
+# Build output
+lib/
+*.tgz
+
+# Maestro test output
+.maestro-output/
+
+# Expo
+.expo/
+
+# Generated native code (expo prebuild)
+example/ios/
+example/android/
+
+# OS
+.DS_Store
+*.log
+
+# Internal docs (specs, plans)
+docs/
+
+# Claude Code
+.claude/

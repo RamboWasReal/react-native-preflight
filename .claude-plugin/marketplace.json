@@ -1,0 +1,20 @@
+{
+  "name": "react-native-preflight-plugins",
+  "owner": {
+    "name": "David Boutin"
+  },
+  "metadata": {
+    "description": "Claude Code skills for react-native-preflight — integrate Maestro E2E testing into React Native projects"
+  },
+  "plugins": [
+    {
+      "name": "react-native-preflight",
+      "source": "./",
+      "description": "Set up preflight in a React Native project — scenario wrapping, StateInjector, Babel config, CLI",
+      "version": "0.1.0",
+      "author": {
+        "name": "David Boutin"
+      }
+    }
+  ]
+}

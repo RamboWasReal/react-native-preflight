@@ -1,0 +1,31 @@
+{
+  "name": "react-native-preflight-example",
+  "version": "0.0.1",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "sync-lib": "rm -rf node_modules/react-native-preflight && mkdir -p node_modules/react-native-preflight && cp -r ../lib ../src ../babel.js ../package.json node_modules/react-native-preflight/",
+    "start": "npm run sync-lib && expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.26.0",
+    "expo": "~55.0.0",
+    "expo-linking": "~55.0.0",
+    "expo-router": "~55.0.0",
+    "expo-status-bar": "~55.0.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.2",
+    "react-native-preflight": "0.1.0",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.9.0"
+  }
+}

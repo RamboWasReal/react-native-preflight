@@ -1,0 +1,40 @@
+appId: "com.preflight.example"
+tags:
+  - preflight
+  - "todos"
+---
+- openLink:
+    link: "preflight://scenario/todos"
+
+- assertVisible:
+    id: "todos"
+
+- assertVisible:
+    id: "todo-item-1"
+
+- assertVisible:
+    id: "todo-item-2"
+
+- assertVisible:
+    id: "todo-item-3"
+
+- assertVisible:
+    text: "2 remaining"
+
+- tapOn:
+    id: "todo-item-2"
+
+- assertVisible:
+    text: "1 remaining"
+
+- tapOn:
+    id: "todo-input"
+- inputText: "Record demo"
+
+- tapOn:
+    id: "todo-add"
+
+- assertVisible:
+    text: "2 remaining"
+
+- takeScreenshot: "todos/current"

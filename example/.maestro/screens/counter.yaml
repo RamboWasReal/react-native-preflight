@@ -1,0 +1,33 @@
+appId: "com.preflight.example"
+tags:
+  - preflight
+  - "counter"
+---
+- openLink:
+    link: "preflight://scenario/counter"
+
+- assertVisible:
+    id: "counter"
+
+- assertVisible:
+    text: "42"
+
+- tapOn:
+    id: "counter-increment"
+
+- tapOn:
+    id: "counter-increment"
+
+- tapOn:
+    id: "counter-increment"
+
+- assertVisible:
+    text: "45"
+
+- tapOn:
+    id: "counter-decrement"
+
+- assertVisible:
+    text: "44"
+
+- takeScreenshot: "counter/current"
