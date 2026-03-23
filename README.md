@@ -215,10 +215,6 @@ iOS and Android often have different bundle identifiers. Use an object instead o
 
 Generates Maestro's native multi-platform `appId` format. A plain string still works for single-platform testing.
 
-### E2E Mode
-
-Generated YAML passes `isE2E: "true"` as a launch argument. Read it in your app to disable animations, analytics, and logging during tests.
-
 ### Bypassing Guards
 
 `isPreflightActive()` returns `true` after a preflight deep link has been handled. Use it to skip security gates, onboarding, and permission modals during E2E tests:

@@ -20,7 +20,7 @@ Before making any changes, check what's already in place:
 **Check if the package is installed and up to date:**
 1. Read `package.json` for `react-native-preflight` in dependencies. If not installed, run `npm install react-native-preflight` (or yarn/pnpm equivalent).
 2. Check the installed version against the latest on npm. If outdated, suggest upgrading: `npm install react-native-preflight@latest`.
-3. After an upgrade, run `npx preflight generate` to regenerate all YAML files with the latest format (new features like `isE2E`, `waitForAnimationToEnd`, `env` support may have been added).
+3. After an upgrade, run `npx preflight generate` to regenerate all YAML files with the latest format.
 
 
 1. **Check for existing Maestro setup** — Look for `.maestro/` directory, any `.yaml` test files, `maestro` in package.json scripts, or a `.maestro.yaml` config file.
@@ -296,7 +296,6 @@ Both appear in the interactive picker (`npx preflight test`). Flows are tagged w
 - **Screenshots wait for stability.** Generated YAML uses `waitForAnimationToEnd` before `takeScreenshot` — Maestro waits for the screen to settle, no manual delay needed.
 - **Variants go in subdirectories.** `screens/{baseId}/{variantKey}.yaml` and `snapshots/{baseId}/{variantKey}/current.png`. Screens without variants stay flat.
 - **Babel plugin is opt-in.** `strip` must be explicitly set to `true` — without it, the plugin does nothing. Always use `{ strip: process.env.NODE_ENV === 'production' }`.
-- **isE2E flag.** Generated YAML passes `isE2E: "true"` as a launch argument. Suggest the user read this flag in their app to disable animations, analytics, and LogBox during E2E tests.
 - **isPreflightActive().** Exported function that returns `true` after a preflight deep link is handled. Use it to bypass security gates, onboarding flows, and permission modals during E2E tests. When the app has HOCs or guards that block navigation (PIN, biometry, consent), check `isPreflightActive()` to skip them instead of hacking the inject().
 - **env variables.** Use `env: { KEY: 'value' }` in scenario config for parameterized tests (test emails, passwords). Generates a Maestro `env:` block in the YAML.
 - **--retry for flaky tests.** `npx preflight test --retry 2` re-runs all tests up to 2 times on failure.

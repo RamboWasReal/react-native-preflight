@@ -188,11 +188,6 @@ test('generateYaml includes env variables block', () => {
   expect(yaml).toContain('TEST_PASSWORD: "secret"');
 });
 
-test('generateYaml includes isE2E launch argument', () => {
-  const yaml = generateYaml({ id: 'test', filePath: 'app/test.tsx', steps: [] }, 'com.test.app');
-  expect(yaml).toContain('isE2E: "true"');
-});
-
 test('generateFlowYaml handles skipIf with notVisible condition', () => {
   const { generateFlowYaml } = require('../commands/generate');
   const yaml = generateFlowYaml({

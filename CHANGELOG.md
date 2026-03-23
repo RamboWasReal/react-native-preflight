@@ -37,7 +37,7 @@ First stable release. Validated with 22/22 scenarios passing on a production Rea
 
 ### Generated YAML
 
-- `launchApp` with `stopApp: false` and `isE2E: "true"` argument
+- `launchApp` with `stopApp: false`
 - `waitForAnimationToEnd` before every screenshot
 - Multi-platform `appId` support (`{ ios, android }`)
 - Flows generated in `.maestro/flows/` with conditional `skipIf` via `runFlow: when: notVisible`
