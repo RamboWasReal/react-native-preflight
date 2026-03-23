@@ -1,93 +1,113 @@
-import { scenario } from 'react-native-preflight';
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from 'react-native';
 import { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  FlatList,
+  StyleSheet,
+} from 'react-native';
+import { scenario, testHelpers } from 'react-native-preflight';
 import { useTodoStore } from '../src/stores/todo-store';
-import type { Todo } from '../src/stores/todo-store';
+
+const { tap, see, type: typeText } = testHelpers;
+
+function TodosScreen() {
+  const { todos, addTodo, toggleTodo } = useTodoStore();
+  const [input, setInput] = useState('');
+
+  const handleAdd = () => {
+    if (input.trim()) {
+      addTodo(input.trim());
+      setInput('');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Todos</Text>
+      <View style={styles.inputRow}>
+        <TextInput
+          testID="todo-input"
+          style={styles.input}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Add a todo..."
+          onSubmitEditing={handleAdd}
+        />
+        <Pressable testID="add-todo" onPress={handleAdd} style={styles.addButton}>
+          <Text style={styles.addButtonText}>Add</Text>
+        </Pressable>
+      </View>
+      <FlatList
+        testID="todo-list"
+        data={todos}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <Pressable
+            testID={`todo-${item.id}`}
+            onPress={() => toggleTodo(item.id)}
+            style={styles.todoItem}
+          >
+            <Text style={[styles.todoText, item.done && styles.todoDone]}>
+              {item.done ? '\u2611' : '\u2610'} {item.text}
+            </Text>
+          </Pressable>
+        )}
+        ListEmptyComponent={
+          <Text testID="empty-state" style={styles.empty}>
+            No todos yet
+          </Text>
+        }
+      />
+    </View>
+  );
+}
 
 export default scenario(
   {
     id: 'todos',
     route: '/todos',
-    description: 'Todo list with pre-filled items',
-    inject: (overrides) => {
-      const items = (overrides?.todos as Todo[]) ?? [
-        { id: '1', text: 'Write tests', done: true },
-        { id: '2', text: 'Ship feature', done: false },
-        { id: '3', text: 'Deploy to prod', done: false },
-      ];
-      useTodoStore.setState({ todos: items });
+    description: 'Todo list with add and toggle',
+    inject: () => {
+      useTodoStore.setState({ todos: [] });
     },
-    test: ({ tap, see, type }) => [
-      see({ id: 'todo-item-1' }),
-      see({ id: 'todo-item-2' }),
-      see({ id: 'todo-item-3' }),
-      see('2 remaining'),
-      tap('todo-item-2'),
-      see('1 remaining'),
-      type('todo-input', 'Record demo'),
-      tap('todo-add'),
-      see('2 remaining'),
+    test: () => [
+      see('empty-state'),
+      typeText('todo-input', 'Buy milk'),
+      tap('add-todo'),
+      see({ id: 'todo-list', text: 'Buy milk' }),
     ],
+    variants: {
+      'with-items': {
+        description: 'Pre-populated todo list',
+        inject: () => {
+          useTodoStore.setState({
+            todos: [
+              { id: '1', text: 'Buy milk', done: false },
+              { id: '2', text: 'Walk the dog', done: true },
+              { id: '3', text: 'Write tests', done: false },
+            ],
+          });
+        },
+        test: () => [
+          see({ id: 'todo-list', text: 'Buy milk' }),
+          see({ id: 'todo-list', text: 'Walk the dog' }),
+        ],
+      },
+    },
   },
-  function TodoScreen() {
-    const { todos, addTodo, toggleTodo } = useTodoStore();
-    const [input, setInput] = useState('');
-
-    const handleAdd = () => {
-      if (!input.trim()) return;
-      addTodo(input.trim());
-      setInput('');
-    };
-
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Todos</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            testID="todo-input"
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Add a todo..."
-            onSubmitEditing={handleAdd}
-          />
-          <Pressable testID="todo-add" style={styles.addButton} onPress={handleAdd}>
-            <Text style={styles.addButtonText}>Add</Text>
-          </Pressable>
-        </View>
-        <FlatList
-          testID="todo-list"
-          data={todos}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`todo-item-${item.id}`}
-              style={styles.item}
-              onPress={() => toggleTodo(item.id)}
-            >
-              <Text style={[styles.itemText, item.done && styles.done]}>
-                {item.done ? '✓ ' : '○ '}
-                {item.text}
-              </Text>
-            </Pressable>
-          )}
-        />
-        <Text testID="todo-count" style={styles.count}>
-          {todos.filter((t) => !t.done).length} remaining
-        </Text>
-      </View>
-    );
-  },
+  TodosScreen,
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 16 },
+  container: { flex: 1, padding: 24, paddingTop: 60 },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
   inputRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#ccc',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -96,12 +116,12 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: '#007AFF',
     borderRadius: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     justifyContent: 'center',
   },
-  addButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  item: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  itemText: { fontSize: 16 },
-  done: { textDecorationLine: 'line-through', color: '#999' },
-  count: { marginTop: 16, fontSize: 14, color: '#666', textAlign: 'center' },
+  addButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  todoItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  todoText: { fontSize: 16 },
+  todoDone: { textDecorationLine: 'line-through', color: '#999' },
+  empty: { color: '#999', fontSize: 16, textAlign: 'center', marginTop: 32 },
 });

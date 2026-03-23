@@ -1,66 +1,67 @@
-import { scenario } from 'react-native-preflight';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import { create } from 'zustand';
+import { View, Text, StyleSheet } from 'react-native';
+import { scenario, testHelpers } from 'react-native-preflight';
 
-interface ProfileState {
-  name: string;
-  email: string;
-  avatar: string;
-  bio: string;
+const { see } = testHelpers;
+
+function ProfileScreen() {
+  return (
+    <View style={styles.container}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>JD</Text>
+      </View>
+      <Text testID="profile-name" style={styles.name}>
+        Jane Doe
+      </Text>
+      <Text testID="profile-email" style={styles.email}>
+        jane@example.com
+      </Text>
+      <View style={styles.statsRow}>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>42</Text>
+          <Text style={styles.statLabel}>Projects</Text>
+        </View>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>128</Text>
+          <Text style={styles.statLabel}>Tasks</Text>
+        </View>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>96%</Text>
+          <Text style={styles.statLabel}>Complete</Text>
+        </View>
+      </View>
+    </View>
+  );
 }
-
-const useProfileStore = create<ProfileState>(() => ({
-  name: '',
-  email: '',
-  avatar: '',
-  bio: '',
-}));
 
 export default scenario(
   {
     id: 'profile',
     route: '/profile',
-    description: 'User profile with injected data',
-    inject: (overrides) => {
-      useProfileStore.setState({
-        name: (overrides?.name as string) ?? 'Jane Doe',
-        email: (overrides?.email as string) ?? 'jane@example.com',
-        avatar: (overrides?.avatar as string) ?? 'https://i.pravatar.cc/150?img=5',
-        bio: (overrides?.bio as string) ?? 'React Native developer who loves building great apps.',
-      });
-    },
-    test: ({ see }) => [
+    description: 'Static profile screen',
+    test: () => [
       see({ id: 'profile-name', text: 'Jane Doe' }),
       see({ id: 'profile-email', text: 'jane@example.com' }),
-      see({ id: 'profile-bio' }),
     ],
   },
-  function ProfileScreen() {
-    const { name, email, avatar, bio } = useProfileStore();
-
-    return (
-      <View style={styles.container}>
-        {avatar ? (
-          <Image testID="profile-avatar" source={{ uri: avatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarInitial}>{name.charAt(0)}</Text>
-          </View>
-        )}
-        <Text testID="profile-name" style={styles.name}>{name}</Text>
-        <Text testID="profile-email" style={styles.email}>{email}</Text>
-        <Text testID="profile-bio" style={styles.bio}>{bio}</Text>
-      </View>
-    );
-  },
+  ProfileScreen,
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', paddingTop: 80, padding: 24, backgroundColor: '#fff' },
-  avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 20 },
-  avatarPlaceholder: { backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center' },
-  avatarInitial: { fontSize: 48, fontWeight: '700', color: '#fff' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
   name: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  email: { fontSize: 16, color: '#666', marginBottom: 16 },
-  bio: { fontSize: 16, color: '#333', textAlign: 'center', lineHeight: 24 },
+  email: { fontSize: 16, color: '#666', marginBottom: 32 },
+  statsRow: { flexDirection: 'row', gap: 32 },
+  stat: { alignItems: 'center' },
+  statValue: { fontSize: 24, fontWeight: '700' },
+  statLabel: { fontSize: 14, color: '#666', marginTop: 4 },
 });

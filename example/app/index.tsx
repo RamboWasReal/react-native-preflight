@@ -5,7 +5,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Preflight Example</Text>
-      <Text style={styles.subtitle}>3 scenarios registered</Text>
+      <Text style={styles.subtitle}>5 scenarios registered</Text>
 
       <Link href="/counter" style={styles.link}>
         <Text style={styles.linkText}>Counter</Text>
