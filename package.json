@@ -1,6 +1,6 @@
 {
   "name": "react-native-preflight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Simplify Maestro E2E testing for React Native — isolated screen tests, dev catalog, visual regression",
   "source": "./src/index.tsx",
   "main": "./lib/module/index.js",
