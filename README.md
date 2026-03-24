@@ -91,6 +91,24 @@ export default scenario(
   - `back()` — press back button
   - `hideKeyboard()` — dismiss the keyboard
   - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML
+
+  Test functions can be extracted to separate files and imported:
+
+  ```ts
+  // e2e/tests/settings.ts
+  import type { TestHelpers } from 'react-native-preflight';
+  export const settingsTest = ({ see, tap }: TestHelpers) => [
+    see('Settings'),
+    tap('dark-mode-toggle'),
+  ];
+
+  // app/settings.tsx
+  import { settingsTest } from '@/e2e/tests/settings';
+  export default scenario({ id: 'settings', route: '/settings', test: settingsTest }, SettingsScreen);
+  ```
+
+  The generator follows single-level imports to resolve test steps from external files.
+
 - `variants` — Optional. Test multiple states of the same screen. Each variant inherits `route`, `inject`, and `test` from the base config unless overridden:
 
 ```tsx

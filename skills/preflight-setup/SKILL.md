@@ -182,6 +182,7 @@ For each selected screen, **read the full file** and modify it:
      - `back()` — press back button
      - `hideKeyboard()` — dismiss the keyboard
      - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML for any unsupported command
+     - Test functions can be imported from external files (e.g. `test: myImportedTest`). The generator follows single-level imports to resolve steps. Use this to keep screen files lean when test logic grows large.
    - `variants`: optional. Use when a screen needs to be tested in multiple states (e.g., logged in vs logged out). Each variant gets its own YAML in a subdirectory.
 3. Add `testID` props to interactive elements (buttons, inputs) and key display elements (titles, counts) if they don't already have them
 4. Convert the default export function to a named function inside `scenario()`

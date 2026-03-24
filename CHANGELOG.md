@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.5 (2026-03-24)
+
+### New Test Helpers
+
+- `swipe(direction, duration?)` — swipe in a direction (default 400ms)
+- `back()` — press back button
+- `hideKeyboard()` — dismiss the keyboard
+- `longPress(id)` — long press element by testID
+- `raw(yaml)` — escape hatch for injecting any raw Maestro YAML
+
+### Improvements
+
+- `scroll(id, direction)` now generates `scrollUntilVisible` (was generating invalid `scroll` with `direction`)
+- Multi-platform `appId` uses `${APP_ID}` env var — Maestro does not support nested format
+- `--platform ios|android` flag on `preflight test` to resolve multi-platform appId
+- `preflight generate` deletes orphaned YAML files with no matching `scenario()` in codebase
+- `preflight generate` follows single-level imports to resolve external test functions
+- Show raw Maestro stderr when tests fail without parsed results (YAML parse errors, etc.)
+- Always display output directory path on test failure
+- Validate generated YAML commands against known Maestro commands at generate time
+
+### Bug Fixes
+
+- Fixed `scroll` step generating invalid Maestro YAML (`scroll` with `direction` property)
+- Fixed multi-platform `appId` generating unsupported nested YAML format
+- Fixed pre-existing lint errors (`no-useless-escape`, `no-redeclare`)
+
 ## 0.1.0 (2026-03-23)
 
 First stable release. Validated with 22/22 scenarios passing on a production React Native app.

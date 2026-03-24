@@ -146,7 +146,83 @@ function extractTestSteps(testFnNode: any): TestStep[] {
 }
 
 
-function extractTestFromProp(obj: any): TestStep[] {
+function resolveImportedFunction(identifierName: string, ast: any, filePath: string): any | null {
+  // Find the import declaration for this identifier
+  for (const node of ast.program.body) {
+    if (node.type !== 'ImportDeclaration') continue;
+    const specifier = node.specifiers.find(
+      (s: any) =>
+        (s.type === 'ImportSpecifier' || s.type === 'ImportDefaultSpecifier') &&
+        s.local.name === identifierName,
+    );
+    if (!specifier) continue;
+
+    const importedName = specifier.type === 'ImportDefaultSpecifier'
+      ? 'default'
+      : (specifier.imported?.name ?? identifierName);
+    const importSource: string = node.source.value;
+
+    // Resolve relative path from the file containing the import
+    const dir = path.dirname(filePath);
+    const candidates = [
+      importSource,
+      importSource + '.ts',
+      importSource + '.tsx',
+      importSource + '.js',
+      importSource + '/index.ts',
+      importSource + '/index.tsx',
+      importSource + '/index.js',
+    ];
+
+    let resolvedPath: string | null = null;
+    for (const candidate of candidates) {
+      const full = path.resolve(dir, candidate);
+      if (fs.existsSync(full)) {
+        resolvedPath = full;
+        break;
+      }
+    }
+
+    if (!resolvedPath) return null;
+
+    try {
+      const importedSource = fs.readFileSync(resolvedPath, 'utf-8');
+      const importedAst = parse(importedSource, {
+        sourceType: 'module',
+        plugins: ['jsx', 'typescript'],
+      });
+
+      // Find the exported function
+      for (const stmt of importedAst.program.body) {
+        // export const foo = (...) => [...]
+        if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration?.type === 'VariableDeclaration') {
+          for (const decl of stmt.declaration.declarations) {
+            if (decl.id?.type === 'Identifier' && decl.id.name === importedName && decl.init) {
+              return decl.init;
+            }
+          }
+        }
+        // export function foo(...) { ... }
+        if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration?.type === 'FunctionDeclaration') {
+          if (stmt.declaration.id?.name === importedName) {
+            return stmt.declaration;
+          }
+        }
+        // export default ...
+        if (importedName === 'default' && stmt.type === 'ExportDefaultDeclaration') {
+          return stmt.declaration;
+        }
+      }
+    } catch {
+      // Failed to parse imported file
+    }
+
+    return null;
+  }
+  return null;
+}
+
+function extractTestFromProp(obj: any, ast?: any, filePath?: string): TestStep[] {
   const testProp = obj.properties.find(
     (p: any) =>
       (p.type === 'ObjectProperty' || p.type === 'ObjectMethod') &&
@@ -155,12 +231,18 @@ function extractTestFromProp(obj: any): TestStep[] {
   );
   if (testProp) {
     const fnNode = testProp.type === 'ObjectMethod' ? testProp : testProp.value;
+    // If test is a reference to an imported function, resolve it
+    if (fnNode.type === 'Identifier' && ast && filePath) {
+      const resolved = resolveImportedFunction(fnNode.name, ast, filePath);
+      if (resolved) return extractTestSteps(resolved);
+      return [];
+    }
     return extractTestSteps(fnNode);
   }
   return [];
 }
 
-function extractVariants(firstArg: any): ScannedVariant[] {
+function extractVariants(firstArg: any, ast?: any, filePath?: string): ScannedVariant[] {
   const variantsProp = firstArg.properties.find(
     (p: any) =>
       p.type === 'ObjectProperty' &&
@@ -187,7 +269,7 @@ function extractVariants(firstArg: any): ScannedVariant[] {
 
     if (prop.value.type !== 'ObjectExpression') continue;
 
-    const steps = extractTestFromProp(prop.value);
+    const steps = extractTestFromProp(prop.value, ast, filePath);
     variants.push({ key, steps });
   }
 
@@ -279,8 +361,8 @@ export function scanScenarios(source: string, filePath: string): ScannedScenario
         return;
       }
 
-      const steps = extractTestFromProp(firstArg);
-      const variants = extractVariants(firstArg);
+      const steps = extractTestFromProp(firstArg, ast, filePath);
+      const variants = extractVariants(firstArg, ast, filePath);
       const flow = extractFlow(firstArg);
 
       // Parse env: { KEY: 'value' }
@@ -661,24 +743,52 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
     }
   }
 
-  // Warn about orphaned YAML files (recursive, skip in quiet mode)
-  if (!quiet) {
+  // Delete orphaned YAML files (only on full generate, not filtered)
+  if (!filterIds) {
     const knownIds = new Set(allScenarios.map((s) => s.id));
-    function findOrphans(dir: string, prefix: string = '') {
+    let deleted = 0;
+    function cleanOrphans(dir: string, prefix: string = '') {
       if (!fs.existsSync(dir)) return;
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          findOrphans(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+          cleanOrphans(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+          // Remove empty directories
+          const dirPath = path.join(dir, entry.name);
+          if (fs.readdirSync(dirPath).length === 0) {
+            fs.rmdirSync(dirPath);
+          }
         } else if (entry.isFile() && entry.name.endsWith('.yaml')) {
           const id = prefix ? `${prefix}/${entry.name.replace('.yaml', '')}` : entry.name.replace('.yaml', '');
           if (!knownIds.has(id)) {
-            console.warn(`  [preflight] Warning: ${id}.yaml has no matching scenario() in codebase`);
+            fs.unlinkSync(path.join(dir, entry.name));
+            log(`  Deleted ${id}.yaml (no matching scenario)`);
+            deleted++;
           }
         }
       }
     }
-    findOrphans(screensDir);
+    cleanOrphans(screensDir);
+
+    // Clean orphaned flow YAMLs
+    const knownFlowIds = new Set(scenariosWithFlows.map((s) => s.id));
+    if (fs.existsSync(flowsDir)) {
+      const flowEntries = fs.readdirSync(flowsDir, { withFileTypes: true });
+      for (const entry of flowEntries) {
+        if (entry.isFile() && entry.name.endsWith('.yaml')) {
+          const id = entry.name.replace('.yaml', '');
+          if (!knownFlowIds.has(id)) {
+            fs.unlinkSync(path.join(flowsDir, entry.name));
+            log(`  Deleted flow: ${id}.yaml (no matching scenario)`);
+            deleted++;
+          }
+        }
+      }
+    }
+
+    if (deleted > 0) {
+      log(`  ${deleted} orphaned file(s) removed`);
+    }
   }
 
   log(`\n  ${created} created, ${updated} updated`);
