@@ -220,15 +220,14 @@ test('scanScenarios extracts env from scenario config', () => {
   expect(results[0]!.env).toEqual({ TEST_EMAIL: 'test@test.com' });
 });
 
-test('generateYaml supports multi-platform appId', () => {
+test('generateYaml supports multi-platform appId via env var', () => {
   const yaml = generateYaml(
     { id: 'test', filePath: 'app/test.tsx', steps: [] },
     { ios: 'com.example.ios', android: 'com.example.android' },
   );
-  expect(yaml).toContain('appId:');
-  expect(yaml).toContain('ios: "com.example.ios"');
-  expect(yaml).toContain('android: "com.example.android"');
-  expect(yaml).not.toContain('appId: "');
+  expect(yaml).toContain('appId: ${APP_ID}');
+  expect(yaml).not.toContain('ios:');
+  expect(yaml).not.toContain('android:');
 });
 
 test('scanScenarios skips invalid IDs', () => {

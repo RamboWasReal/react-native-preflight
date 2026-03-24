@@ -213,7 +213,14 @@ iOS and Android often have different bundle identifiers. Use an object instead o
 }
 ```
 
-Generates Maestro's native multi-platform `appId` format. A plain string still works for single-platform testing.
+Generated YAML uses `appId: ${APP_ID}` — Maestro resolves the value at runtime. When running tests, specify the target platform:
+
+```bash
+npx preflight test --platform ios
+npx preflight test --all --platform android
+```
+
+A plain string `appId` still works without `--platform`.
 
 ### Bypassing Guards
 

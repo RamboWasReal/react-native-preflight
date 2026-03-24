@@ -39,7 +39,7 @@ First stable release. Validated with 22/22 scenarios passing on a production Rea
 
 - `launchApp` with `stopApp: false`
 - `waitForAnimationToEnd` before every screenshot
-- Multi-platform `appId` support (`{ ios, android }`)
+- Multi-platform `appId` support (`{ ios, android }`) via `${APP_ID}` env var and `--platform` flag
 - Flows generated in `.maestro/flows/` with conditional `skipIf` via `runFlow: when: notVisible`
 
 ### Framework Detection

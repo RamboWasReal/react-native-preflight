@@ -291,11 +291,7 @@ function formatAppId(appId: AppId): string[] {
   if (typeof appId === 'string') {
     return [`appId: ${escapeYamlString(appId)}`];
   }
-  return [
-    `appId:`,
-    `  ios: ${escapeYamlString(appId.ios)}`,
-    `  android: ${escapeYamlString(appId.android)}`,
-  ];
+  return [`appId: \${APP_ID}`];
 }
 
 function escapeYamlString(value: string): string {

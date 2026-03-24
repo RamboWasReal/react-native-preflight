@@ -9,10 +9,12 @@ export function scenario<P extends object>(
   config: ScenarioConfig,
   Component: React.ComponentType<P>,
 ): React.ComponentType<P>;
+// eslint-disable-next-line no-redeclare
 export function scenario(
   config: ScenarioConfig,
   Component: React.ComponentType<any>,
 ): React.ComponentType<any>;
+// eslint-disable-next-line no-redeclare
 export function scenario<P extends object>(
   config: ScenarioConfig,
   Component: React.ComponentType<P>,

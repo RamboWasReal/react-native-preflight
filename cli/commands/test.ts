@@ -6,6 +6,17 @@ import prompts from 'prompts';
 import { validateScenarioId, type PreflightConfig } from '../config';
 import { runGenerate } from './generate';
 
+function resolveAppId(config: PreflightConfig, platform?: 'ios' | 'android'): { appId: string; env?: [string, string] } {
+  if (typeof config.appId === 'string') {
+    return { appId: config.appId };
+  }
+  if (!platform) {
+    console.error('[preflight] Multi-platform appId requires --platform ios or --platform android.');
+    process.exit(1);
+  }
+  return { appId: config.appId[platform], env: ['APP_ID', config.appId[platform]] };
+}
+
 const c = {
   green: (s: string) => `\x1b[32m${s}\x1b[0m`,
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -19,6 +30,7 @@ interface TestOptions {
   all?: boolean;
   snapshot?: boolean;
   retry?: string;
+  platform?: 'ios' | 'android';
 }
 
 interface FlowResult {
@@ -151,6 +163,7 @@ function runMaestroWithStreaming(
   projectRoot: string,
   flowToName: Map<string, string>,
   total: number,
+  envArgs: string[] = [],
 ): Promise<{ results: FlowResult[]; debugPath?: string; exitCode: number }> {
   return new Promise((resolve) => {
     const results: FlowResult[] = [];
@@ -160,7 +173,7 @@ function runMaestroWithStreaming(
 
     renderProgress(total, 0);
 
-    const proc = spawn('maestro', ['test', '--output', maestroOutput, tempDir], {
+    const proc = spawn('maestro', ['test', ...envArgs, '--output', maestroOutput, tempDir], {
       cwd: projectRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -296,6 +309,8 @@ export async function runTest(
     return;
   }
 
+  const resolved = resolveAppId(config, options.platform);
+
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-'));
   try {
     const flowToName = new Map<string, string>();
@@ -304,7 +319,7 @@ export async function runTest(
       const name = isFlow
         ? `[flow] ${getFlowName(projectRoot, yaml)}`
         : getScenarioName(screensDir, yaml);
-      const flowName = name.replace(/[\[\] ]/g, '').replace(/\//g, '--');
+      const flowName = name.replace(/[[\] ]/g, '').replace(/\//g, '--');
       const tempPath = path.join(tempDir, flowName + '.yaml');
       fs.copyFileSync(yaml, tempPath);
       flowToName.set(flowName, name);
@@ -317,6 +332,7 @@ export async function runTest(
     fs.mkdirSync(maestroOutput, { recursive: true });
 
     const maxRetries = options.retry ? Math.max(0, parseInt(options.retry, 10)) : 0;
+    const envArgs = resolved.env ? ['-e', `${resolved.env[0]}=${resolved.env[1]}`] : [];
     let attempt = 0;
     let results: FlowResult[] = [];
     let debugPath: string | undefined;
@@ -327,7 +343,7 @@ export async function runTest(
         console.log(`\n  ${c.yellow(`Retry ${attempt}/${maxRetries}`)} — re-running failed tests...\n`);
       }
       const run = await runMaestroWithStreaming(
-        tempDir, maestroOutput, projectRoot, flowToName, total,
+        tempDir, maestroOutput, projectRoot, flowToName, total, envArgs,
       );
       results = run.results;
       debugPath = run.debugPath;

@@ -31,6 +31,7 @@ program
   .option('--all', 'Run all scenarios')
   .option('--snapshot', 'Capture screenshots')
   .option('--retry <count>', 'Retry failed tests N times')
+  .option('--platform <platform>', 'Target platform (ios or android)')
   .action(async (id, options) => {
     const config = loadConfig(process.cwd());
     await runTest(id, options, process.cwd(), config);

@@ -104,7 +104,7 @@ Add the confirmed appId to `package.json` under `"preflight": { "appId": "..." }
   }
 }
 ```
-This generates Maestro's native multi-platform appId format. Ask the user if their iOS and Android IDs differ.
+This generates `appId: ${APP_ID}` in the YAML — Maestro resolves the value at runtime via `-e APP_ID=...`. Tests must be run with `--platform ios` or `--platform android`. Ask the user if their iOS and Android IDs differ.
 
 ### 6. Persist srcDir in config
 If the detected srcDir is not the default `app/`, persist it in `package.json` under `"preflight": { "srcDir": "..." }` so that `generate` and `test` commands pick it up automatically.

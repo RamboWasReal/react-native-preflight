@@ -150,3 +150,39 @@ test('shows interactive picker when no id and no --all', async () => {
   expect(mockPrompts).toHaveBeenCalled();
   log.mockRestore();
 });
+
+test('passes -e APP_ID to maestro when multi-platform appId with --platform', async () => {
+  const multiConfig = {
+    ...config,
+    appId: { ios: 'com.test.ios', android: 'com.test.android' } as any,
+  };
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'ios' as const }, '/project', multiConfig);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['-e', 'APP_ID=com.test.ios']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+test('exits with error when multi-platform appId without --platform', async () => {
+  const multiConfig = {
+    ...config,
+    appId: { ios: 'com.test.ios', android: 'com.test.android' } as any,
+  };
+  mockFs.existsSync.mockReturnValue(true);
+
+  const errLog = jest.spyOn(console, 'error').mockImplementation();
+  await expect(runTest('counter', {}, '/project', multiConfig)).rejects.toThrow('exit');
+  expect(mockExit).toHaveBeenCalledWith(1);
+  expect(errLog).toHaveBeenCalledWith(expect.stringContaining('--platform'));
+  errLog.mockRestore();
+});
