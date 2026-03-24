@@ -164,12 +164,13 @@ function runMaestroWithStreaming(
   flowToName: Map<string, string>,
   total: number,
   envArgs: string[] = [],
-): Promise<{ results: FlowResult[]; debugPath?: string; exitCode: number }> {
+): Promise<{ results: FlowResult[]; debugPath?: string; exitCode: number; rawStderr: string }> {
   return new Promise((resolve) => {
     const results: FlowResult[] = [];
     let debugPath: string | undefined;
     let completed = 0;
     let currentFlow: string | undefined;
+    const stderrChunks: string[] = [];
 
     renderProgress(total, 0);
 
@@ -241,14 +242,18 @@ function runMaestroWithStreaming(
     }
 
     proc.stdout.on('data', (data: Buffer) => processBuffer(data.toString()));
-    proc.stderr.on('data', (data: Buffer) => processBuffer(data.toString()));
+    proc.stderr.on('data', (data: Buffer) => {
+      const text = data.toString();
+      stderrChunks.push(text);
+      processBuffer(text);
+    });
 
     proc.on('close', (code) => {
       // Process remaining buffer
       if (buffer.trim()) processLine(buffer);
       // Clear progress line
       process.stdout.write(c.clearLine);
-      resolve({ results, debugPath, exitCode: code ?? 1 });
+      resolve({ results, debugPath, exitCode: code ?? 1, rawStderr: stderrChunks.join('') });
     });
   });
 }
@@ -336,6 +341,7 @@ export async function runTest(
     let attempt = 0;
     let results: FlowResult[] = [];
     let debugPath: string | undefined;
+    let rawStderr = '';
     let exitCode: number;
 
     do {
@@ -348,6 +354,7 @@ export async function runTest(
       results = run.results;
       debugPath = run.debugPath;
       exitCode = run.exitCode;
+      rawStderr = run.rawStderr;
       attempt++;
     } while (exitCode !== 0 && attempt <= maxRetries);
 
@@ -371,9 +378,15 @@ export async function runTest(
         }
       }
     } else if (!allPassed) {
-      // No parsed results — show all as failed
+      // No parsed results — Maestro likely crashed (YAML parse error, etc.)
       for (const name of flowToName.values()) {
         console.log(`  ${c.red('FAIL')}  ${c.bold(name)}`);
+      }
+      if (rawStderr.trim()) {
+        console.log(`\n  ${c.dim('Maestro error:')}`);
+        for (const line of rawStderr.trim().split('\n')) {
+          console.log(`  ${c.red(line)}`);
+        }
       }
     } else {
       for (const name of flowToName.values()) {
@@ -407,7 +420,10 @@ export async function runTest(
       failCount > 0 ? c.red(`${failCount} failed`) : '',
     ].filter(Boolean).join(', ');
     console.log(`\n${summary}`);
-    if (!allPassed) process.exit(1);
+    if (!allPassed) {
+      console.log(`\n  ${c.dim('Output:')} ${maestroOutput}`);
+      process.exit(1);
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -4,7 +4,7 @@ export type TestStep =
   | { notSee: string }
   | { type: [id: string, text: string] }
   | { wait: number }
-  | { scroll: [id: string, direction: 'up' | 'down' | 'left' | 'right'] };
+  | { scroll: [id: string, direction: 'up' | 'down' | 'left' | 'right', duration?: number] };
 
 export interface TestHelpers {
   tap: (id: string) => TestStep;
@@ -12,7 +12,7 @@ export interface TestHelpers {
   notSee: (text: string) => TestStep;
   type: (id: string, text: string) => TestStep;
   wait: (ms: number) => TestStep;
-  scroll: (id: string, direction: 'up' | 'down' | 'left' | 'right') => TestStep;
+  scroll: (id: string, direction: 'up' | 'down' | 'left' | 'right', duration?: number) => TestStep;
 }
 
 export const testHelpers: TestHelpers = {
@@ -21,7 +21,7 @@ export const testHelpers: TestHelpers = {
   notSee: (text) => ({ notSee: text }),
   type: (id, text) => ({ type: [id, text] }),
   wait: (ms) => ({ wait: ms }),
-  scroll: (id, direction) => ({ scroll: [id, direction] }),
+  scroll: (id, direction, duration) => ({ scroll: [id, direction, duration] }),
 };
 
 export interface VariantConfig {

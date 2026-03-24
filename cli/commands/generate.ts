@@ -14,7 +14,7 @@ interface TestStep {
   notSee?: string;
   type?: [string, string];
   wait?: number;
-  scroll?: [string, string];
+  scroll?: [string, string, number?];
 }
 
 interface ScannedScenario {
@@ -106,7 +106,8 @@ function extractTestSteps(testFnNode: any): TestStep[] {
           break;
         case 'scroll':
           if (args[0]?.type === 'StringLiteral' && args[1]?.type === 'StringLiteral') {
-            steps.push({ scroll: [args[0].value, args[1].value] });
+            const duration = args[2]?.type === 'NumericLiteral' ? args[2].value : undefined;
+            steps.push({ scroll: [args[0].value, args[1].value, duration] });
           }
           break;
       }
@@ -301,6 +302,33 @@ function escapeYamlString(value: string): string {
   return '"' + value + '"';
 }
 
+const MAESTRO_COMMANDS = new Set([
+  'launchApp', 'stopApp', 'clearState', 'clearKeychain',
+  'tapOn', 'doubleTapOn', 'longPressOn', 'swipe', 'scroll',
+  'scrollUntilVisible', 'inputText', 'eraseText', 'pressKey',
+  'openLink', 'navigate', 'assertVisible', 'assertNotVisible',
+  'assertTrue', 'assertWithAI', 'takeScreenshot', 'setLocation',
+  'repeat', 'runFlow', 'runScript', 'waitForAnimationToEnd',
+  'extendedWaitUntil', 'evalScript', 'back', 'hideKeyboard',
+  'copyTextFrom', 'pasteText', 'addMedia', 'startRecording',
+  'stopRecording',
+]);
+
+function validateYaml(yaml: string, scenarioId: string): void {
+  const lines = yaml.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    // Match top-level commands: "- commandName:" or "- commandName"
+    const match = line.match(/^- (\w+)(?::|\s*$)/);
+    if (match) {
+      const cmd = match[1]!;
+      if (!MAESTRO_COMMANDS.has(cmd)) {
+        console.warn(`[preflight] Warning: unknown Maestro command "${cmd}" in ${scenarioId}.yaml (line ${i + 1})`);
+      }
+    }
+  }
+}
+
 function stepToYaml(step: TestStep): string {
   if (step.tap) {
     return `- tapOn:\n    id: ${escapeYamlString(step.tap)}`;
@@ -325,7 +353,8 @@ function stepToYaml(step: TestStep): string {
     return `- runScript:\n    script: |\n      java.lang.Thread.sleep(${clamped})`;
   }
   if (step.scroll) {
-    return `- scroll:\n    direction: ${step.scroll[1]!.toUpperCase()}`;
+    const duration = step.scroll[2] ?? 400;
+    return `- swipe:\n    direction: ${step.scroll[1]!.toUpperCase()}\n    duration: ${duration}`;
   }
   return '';
 }
@@ -563,6 +592,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
     fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
 
     const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env);
+    validateYaml(yaml, s.id);
     const exists = fs.existsSync(yamlPath);
     fs.writeFileSync(yamlPath, yaml);
     const stepCount = s.steps.length;
@@ -581,6 +611,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
       const flowPath = path.join(flowsDir, `${s.id}.yaml`);
       const env = Object.keys(s.env).length > 0 ? s.env : undefined;
       const yaml = generateFlowYaml(s, config.appId, config.snapshotsDir, env);
+      validateYaml(yaml, `flow-${s.id}`);
       const exists = fs.existsSync(flowPath);
       fs.writeFileSync(flowPath, yaml);
       const flowLabel = exists ? 'Updated' : 'Created';
