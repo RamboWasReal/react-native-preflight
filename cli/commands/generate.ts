@@ -14,7 +14,12 @@ interface TestStep {
   notSee?: string;
   type?: [string, string];
   wait?: number;
-  scroll?: [string, string, number?];
+  scroll?: [string, string];
+  swipe?: [string, number?];
+  back?: true;
+  hideKeyboard?: true;
+  longPress?: string;
+  raw?: string;
 }
 
 interface ScannedScenario {
@@ -106,8 +111,29 @@ function extractTestSteps(testFnNode: any): TestStep[] {
           break;
         case 'scroll':
           if (args[0]?.type === 'StringLiteral' && args[1]?.type === 'StringLiteral') {
-            const duration = args[2]?.type === 'NumericLiteral' ? args[2].value : undefined;
-            steps.push({ scroll: [args[0].value, args[1].value, duration] });
+            steps.push({ scroll: [args[0].value, args[1].value] });
+          }
+          break;
+        case 'swipe':
+          if (args[0]?.type === 'StringLiteral') {
+            const duration = args[1]?.type === 'NumericLiteral' ? args[1].value : undefined;
+            steps.push({ swipe: [args[0].value, duration] });
+          }
+          break;
+        case 'back':
+          steps.push({ back: true });
+          break;
+        case 'hideKeyboard':
+          steps.push({ hideKeyboard: true });
+          break;
+        case 'longPress':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ longPress: args[0].value });
+          }
+          break;
+        case 'raw':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ raw: args[0].value });
           }
           break;
       }
@@ -353,8 +379,23 @@ function stepToYaml(step: TestStep): string {
     return `- runScript:\n    script: |\n      java.lang.Thread.sleep(${clamped})`;
   }
   if (step.scroll) {
-    const duration = step.scroll[2] ?? 400;
-    return `- swipe:\n    direction: ${step.scroll[1]!.toUpperCase()}\n    duration: ${duration}`;
+    return `- scrollUntilVisible:\n    element:\n      id: ${escapeYamlString(step.scroll[0])}\n    direction: ${step.scroll[1]!.toUpperCase()}`;
+  }
+  if (step.swipe) {
+    const duration = step.swipe[1] ?? 400;
+    return `- swipe:\n    direction: ${step.swipe[0]!.toUpperCase()}\n    duration: ${duration}`;
+  }
+  if (step.back) {
+    return `- back`;
+  }
+  if (step.hideKeyboard) {
+    return `- hideKeyboard`;
+  }
+  if (step.longPress) {
+    return `- longPressOn:\n    id: ${escapeYamlString(step.longPress)}`;
+  }
+  if (step.raw) {
+    return step.raw;
   }
   return '';
 }

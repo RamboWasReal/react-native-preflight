@@ -172,10 +172,16 @@ For each selected screen, **read the full file** and modify it:
      - `see('text')` — assert visible text
      - `see({ id: 'testID' })` — assert testID visible (use this for testID-based assertions)
      - `tap('buttonId')` — tap element by testID
+     - `longPress('itemId')` — long press element by testID
      - `type('inputId', 'value')` — type text into input
      - `notSee('text')` — assert text not visible
      - `wait(2000)` — wait N milliseconds
-     - `scroll('listId', 'down')` — scroll the screen (direction: up/down)
+     - `scroll('elementId', 'down')` — scroll until element is visible (generates `scrollUntilVisible`)
+     - `swipe('left')` — swipe in a direction (default 400ms duration)
+     - `swipe('up', 200)` — swipe with custom duration
+     - `back()` — press back button
+     - `hideKeyboard()` — dismiss the keyboard
+     - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML for any unsupported command
    - `variants`: optional. Use when a screen needs to be tested in multiple states (e.g., logged in vs logged out). Each variant gets its own YAML in a subdirectory.
 3. Add `testID` props to interactive elements (buttons, inputs) and key display elements (titles, counts) if they don't already have them
 4. Convert the default export function to a named function inside `scenario()`
@@ -277,7 +283,7 @@ Both appear in the interactive picker (`npx preflight test`). Flows are tagged w
 - **Read the screens first.** Follow the actual navigation logic — don't guess which screen comes after which.
 - **`test()` runs first**, then `flow` continues to subsequent screens via real navigation (tapping buttons).
 - **`screen` must match the `id` of another scenario.** The `assertVisible` uses that ID as the testID.
-- **`actions` uses the same helpers** as `test()`: `tap()`, `type()`, `see()`, etc.
+- **`actions` uses the same helpers** as `test()`: `tap()`, `type()`, `see()`, `scroll()`, `swipe()`, `back()`, `hideKeyboard()`, `longPress()`, `raw()`.
 - **`skipIf`** makes a step conditional: `{ screen: 'onboarding', skipIf: 'home', actions: ... }` — skip this step if `home` testID is already visible (user already past this screen).
 - **Keep flows short** — 2-5 screens max. If it's longer, break it into sub-flows.
 

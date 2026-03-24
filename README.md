@@ -62,9 +62,10 @@ export default scenario(
     inject: async () => {
       // Pre-populate stores, query cache, etc.
     },
-    test: ({ see, tap }) => [
+    test: ({ see, tap, scroll }) => [
       see('Settings'),
       tap('dark-mode-toggle'),
+      scroll('footer', 'down'),
     ],
   },
   function SettingsScreen() {
@@ -80,10 +81,16 @@ export default scenario(
   - `see('text')` — assert visible text
   - `see({ id: 'testID' })` — assert testID visible
   - `tap('buttonId')` — tap element by testID
+  - `longPress('itemId')` — long press element by testID
   - `type('inputId', 'value')` — type text into input
   - `notSee('text')` — assert text not visible
   - `wait(2000)` — wait N milliseconds
-  - `scroll('listId', 'down')` — scroll the screen
+  - `scroll('elementId', 'down')` — scroll until element is visible (`scrollUntilVisible`)
+  - `swipe('left')` — swipe in a direction (default 400ms)
+  - `swipe('up', 200)` — swipe with custom duration
+  - `back()` — press back button
+  - `hideKeyboard()` — dismiss the keyboard
+  - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML
 - `variants` — Optional. Test multiple states of the same screen. Each variant inherits `route`, `inject`, and `test` from the base config unless overridden:
 
 ```tsx
