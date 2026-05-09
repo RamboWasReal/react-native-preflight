@@ -45,7 +45,7 @@ Then run:
 npx preflight init
 ```
 
-Creates `.maestro/` directories, adds the `preflight` deep link scheme to `app.json`, scaffolds a catalog screen, and configures the Babel plugin.
+Creates `.maestro/` directories, adds the configured deep link scheme to `app.json`, scaffolds a catalog screen, and configures the Babel plugin.
 
 ### 2. Wrap your screens
 
@@ -84,7 +84,7 @@ export default scenario(
   - `longPress('itemId')` — long press element by testID
   - `type('inputId', 'value')` — type text into input
   - `notSee('text')` — assert text not visible
-  - `wait(2000)` — wait N milliseconds
+  - `wait(2000)` — pause the Maestro flow for N milliseconds; prefer `see`, `scroll`, and `waitForAnimationToEnd` when possible
   - `scroll('elementId', 'down')` — scroll until element is visible (`scrollUntilVisible`)
   - `swipe('left')` — swipe in a direction (default 400ms)
   - `swipe('up', 200)` — swipe with custom duration
@@ -128,11 +128,13 @@ export default scenario({
 }, DashboardScreen);
 ```
 
-Generates `screens/dashboard/with-data.yaml` and `screens/dashboard/empty-state.yaml`.
+Generates `screens/dashboard.yaml`, `screens/dashboard/with-data.yaml`, and `screens/dashboard/empty-state.yaml`.
+
+The base `dashboard` scenario remains registered when variants are present. Use it for the default screen state, and use variants only for named alternate states.
 
 ### 3. Add StateInjector
 
-Wrap your root layout with `StateInjector`. It listens for `preflight://` deep links, calls `inject`, then navigates.
+Wrap your root layout with `StateInjector`. It listens for preflight deep links, calls `inject`, then navigates.
 
 **Expo Router** (auto-detected):
 ```tsx
@@ -174,7 +176,9 @@ export default function PreflightScreen() {
 }
 ```
 
-For React Navigation: `<Preflight onNavigate={(id) => navigation.navigate(id)} />`
+For React Navigation: `<Preflight onNavigate={(route) => navigation.navigate(route)} />`
+
+`Preflight` calls `inject()` before preview navigation and passes the scenario `route` to `onNavigate`, matching `StateInjector`.
 
 ### 5. Configure Babel
 
@@ -220,8 +224,37 @@ In `preflight.config.js` or under a `preflight` key in `package.json`:
 | `snapshotsDir` | `".maestro/snapshots"` | Screenshot baselines and diffs |
 | `threshold` | `0.1` | Allowed pixel diff % before comparison fails |
 | `srcDir` | `""` (auto-detected) | Source directory for screen files |
+| `launchApp` | `{ stopApp: false }` | Maestro `launchApp` options: `stopApp`, `clearState`, `clearKeychain`, `permissions` |
 
 Generated YAML uses Maestro's `waitForAnimationToEnd` before each screenshot — no manual delay needed.
+
+Use `launchApp` when you need more deterministic Maestro startup behavior:
+
+```json
+{
+  "preflight": {
+    "launchApp": {
+      "stopApp": true,
+      "clearState": true,
+      "clearKeychain": true,
+      "permissions": {
+        "notifications": "allow",
+        "location": "deny"
+      }
+    }
+  }
+}
+```
+
+Keep `clearState` off if your `inject()` depends on persisted state that is created before the preflight deep link runs.
+
+If you set a custom `scheme`, pass the same value to `StateInjector`:
+
+```tsx
+<StateInjector scheme="myapp-preflight">
+  <Stack />
+</StateInjector>
+```
 
 ### Multi-Platform appId
 
@@ -249,7 +282,7 @@ A plain string `appId` still works without `--platform`.
 
 ### Bypassing Guards
 
-`isPreflightActive()` returns `true` after a preflight deep link has been handled. Use it to skip security gates, onboarding, and permission modals during E2E tests:
+`isPreflightActive()` returns `true` after a valid preflight deep link has found a scenario and completed `inject()`. Use it to skip security gates, onboarding, and permission modals during E2E tests:
 
 ```ts
 import { isPreflightActive } from 'react-native-preflight';
@@ -347,7 +380,7 @@ Promotes `current.png` to `baseline.png` when UI changes are intentional.
 ## How It Works
 
 1. `scenario(config, Component)` registers the screen in an in-memory registry at import time and wraps it with `<View testID={id}>` for Maestro assertions.
-2. `StateInjector` intercepts `preflight://scenario/<id>` deep links, calls `inject()`, then navigates via `expo-router` or your `onNavigate` callback.
+2. `StateInjector` intercepts `<scheme>://scenario/<id>` deep links, calls `inject()`, then navigates via `expo-router` or your `onNavigate` callback.
 3. The Babel plugin replaces `scenario(config, Component)` with just `Component` and removes `<Preflight />` elements — zero preflight code in production.
 
 ## License

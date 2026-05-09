@@ -3,6 +3,9 @@ tags:
   - preflight
   - "counter"
 ---
+- launchApp:
+    stopApp: false
+
 - openLink:
     link: "preflight://scenario/counter"
 
@@ -10,24 +13,30 @@ tags:
     id: "counter"
 
 - assertVisible:
-    text: "42"
+    id: "count"
+    text: "0"
 
 - tapOn:
-    id: "counter-increment"
-
-- tapOn:
-    id: "counter-increment"
-
-- tapOn:
-    id: "counter-increment"
+    id: "increment"
 
 - assertVisible:
-    text: "45"
+    id: "count"
+    text: "1"
 
 - tapOn:
-    id: "counter-decrement"
+    id: "increment"
 
 - assertVisible:
-    text: "44"
+    id: "count"
+    text: "2"
 
-- takeScreenshot: "counter/current"
+- tapOn:
+    id: "decrement"
+
+- assertVisible:
+    id: "count"
+    text: "1"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: ".maestro/snapshots/counter/current"

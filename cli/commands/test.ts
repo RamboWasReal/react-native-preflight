@@ -171,6 +171,7 @@ function runMaestroWithStreaming(
     let completed = 0;
     let currentFlow: string | undefined;
     const stderrChunks: string[] = [];
+    let settled = false;
 
     renderProgress(total, 0);
 
@@ -248,7 +249,21 @@ function runMaestroWithStreaming(
       processBuffer(text);
     });
 
+    proc.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      process.stdout.write(c.clearLine);
+      resolve({
+        results,
+        debugPath,
+        exitCode: 1,
+        rawStderr: `[preflight] Failed to start Maestro: ${error.message}\nInstall Maestro and make sure "maestro" is available on PATH.`,
+      });
+    });
+
     proc.on('close', (code) => {
+      if (settled) return;
+      settled = true;
       // Process remaining buffer
       if (buffer.trim()) processLine(buffer);
       // Clear progress line
@@ -319,15 +334,20 @@ export async function runTest(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-'));
   try {
     const flowToName = new Map<string, string>();
+    const flowToSnapshotId = new Map<string, string>();
     for (const yaml of yamlFiles) {
       const isFlow = flowFiles.has(yaml);
       const name = isFlow
         ? `[flow] ${getFlowName(projectRoot, yaml)}`
         : getScenarioName(screensDir, yaml);
       const flowName = name.replace(/[[\] ]/g, '').replace(/\//g, '--');
+      const snapshotId = isFlow
+        ? `flow-${getFlowName(projectRoot, yaml)}`
+        : getScenarioName(screensDir, yaml);
       const tempPath = path.join(tempDir, flowName + '.yaml');
       fs.copyFileSync(yaml, tempPath);
       flowToName.set(flowName, name);
+      flowToSnapshotId.set(flowName, snapshotId);
     }
 
     const total = yamlFiles.length;
@@ -346,7 +366,7 @@ export async function runTest(
 
     do {
       if (attempt > 0) {
-        console.log(`\n  ${c.yellow(`Retry ${attempt}/${maxRetries}`)} — re-running failed tests...\n`);
+        console.log(`\n  ${c.yellow(`Retry ${attempt}/${maxRetries}`)} — re-running selected tests...\n`);
       }
       const run = await runMaestroWithStreaming(
         tempDir, maestroOutput, projectRoot, flowToName, total, envArgs,
@@ -397,8 +417,10 @@ export async function runTest(
     // Snapshots — process each passed test individually (not gated on allPassed)
     if (options.snapshot) {
       const passedNames = results.length > 0
-        ? results.filter((r) => r.passed).map((r) => r.displayName)
-        : (allPassed ? Array.from(flowToName.values()) : []);
+        ? results
+          .filter((r) => r.passed)
+          .map((r) => flowToSnapshotId.get(r.name) ?? r.displayName)
+        : (allPassed ? Array.from(flowToSnapshotId.values()) : []);
 
       for (const name of passedNames) {
         const snapshotsDir = path.join(projectRoot, config.snapshotsDir, name);

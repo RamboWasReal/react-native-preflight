@@ -3,6 +3,9 @@ tags:
   - preflight
   - "profile"
 ---
+- launchApp:
+    stopApp: false
+
 - openLink:
     link: "preflight://scenario/profile"
 
@@ -17,7 +20,6 @@ tags:
     id: "profile-email"
     text: "jane@example.com"
 
-- assertVisible:
-    id: "profile-bio"
+- waitForAnimationToEnd
 
-- takeScreenshot: "profile/current"
+- takeScreenshot: ".maestro/snapshots/profile/current"

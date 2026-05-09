@@ -1,11 +1,5 @@
 import { useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
 import { getAllScenarios, getScenario } from './registry';
 import type { PreflightProps, ScenarioEntry } from './types';
 
@@ -46,19 +40,9 @@ export function Preflight({ onNavigate }: PreflightProps) {
 
   const handlePreview = useCallback(
     async (id: string) => {
-      if (onNavigate) {
-        onNavigate(id);
-        return;
-      }
-
       const entry = getScenario(id);
       if (!entry) {
         console.warn(`[preflight] Scenario "${id}" not found in registry.`);
-        return;
-      }
-
-      if (!expoRouter) {
-        console.error('[preflight] expo-router not available. Provide an onNavigate prop to <Preflight />.');
         return;
       }
 
@@ -66,9 +50,24 @@ export function Preflight({ onNavigate }: PreflightProps) {
         try {
           await entry.inject(undefined);
         } catch (error) {
-          console.error(`[preflight] inject() failed for scenario "${id}":`, error);
+          console.error(
+            `[preflight] inject() failed for scenario "${id}":`,
+            error,
+          );
           return;
         }
+      }
+
+      if (onNavigate) {
+        onNavigate(entry.route);
+        return;
+      }
+
+      if (!expoRouter) {
+        console.error(
+          '[preflight] expo-router not available. Provide an onNavigate prop to <Preflight />.',
+        );
+        return;
       }
 
       expoRouter.router.push(entry.route);

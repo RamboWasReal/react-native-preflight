@@ -10,7 +10,9 @@ afterEach(() => {
 test('registers scenario in registry at call time', () => {
   scenario(
     { id: 'my-screen', route: '/my-screen', description: 'desc' },
-    function MyScreen() { return <Text>Hello</Text>; }
+    function MyScreen() {
+      return <Text>Hello</Text>;
+    },
   );
   const entry = getScenario('my-screen');
   expect(entry).toBeDefined();
@@ -21,7 +23,9 @@ test('registers scenario in registry at call time', () => {
 test('renders the wrapped component', () => {
   const Wrapped = scenario(
     { id: 'render-test', route: '/render-test' },
-    function MyScreen() { return <Text>Content</Text>; }
+    function MyScreen() {
+      return <Text>Content</Text>;
+    },
   );
   const { getByText } = render(<Wrapped />);
   expect(getByText('Content')).toBeTruthy();
@@ -30,7 +34,9 @@ test('renders the wrapped component', () => {
 test('wraps component with testID View', () => {
   const Wrapped = scenario(
     { id: 'testid-test', route: '/testid-test' },
-    function MyScreen() { return <Text>Inner</Text>; }
+    function MyScreen() {
+      return <Text>Inner</Text>;
+    },
   );
   const { getByTestId } = render(<Wrapped />);
   expect(getByTestId('testid-test')).toBeTruthy();
@@ -40,7 +46,9 @@ test('passes inject function to registry', () => {
   const inject = jest.fn();
   scenario(
     { id: 'inject-test', route: '/inject-test', inject },
-    function MyScreen() { return <Text>X</Text>; }
+    function MyScreen() {
+      return <Text>X</Text>;
+    },
   );
   const entry = getScenario('inject-test');
   expect(entry?.inject).toBe(inject);
@@ -48,7 +56,9 @@ test('passes inject function to registry', () => {
 
 test('returns unwrapped component when id is empty', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation();
-  function MyScreen() { return <Text>Hello</Text>; }
+  function MyScreen() {
+    return <Text>Hello</Text>;
+  }
   const Result = scenario({ id: '', route: '/x' }, MyScreen);
   expect(Result).toBe(MyScreen);
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('empty id'));
@@ -57,7 +67,9 @@ test('returns unwrapped component when id is empty', () => {
 
 test('returns unwrapped component when route is empty', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation();
-  function MyScreen() { return <Text>Hello</Text>; }
+  function MyScreen() {
+    return <Text>Hello</Text>;
+  }
   const Result = scenario({ id: 'no-route', route: '' }, MyScreen);
   expect(Result).toBe(MyScreen);
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('without a route'));
@@ -66,7 +78,9 @@ test('returns unwrapped component when route is empty', () => {
 
 test('warns and skips registration for invalid id', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation();
-  function MyScreen() { return <Text>Hello</Text>; }
+  function MyScreen() {
+    return <Text>Hello</Text>;
+  }
   const Result = scenario({ id: 'invalid id!', route: '/x' }, MyScreen);
   expect(Result).toBe(MyScreen);
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('invalid id'));
@@ -85,9 +99,11 @@ test('registers variants as separate scenarios', () => {
         'logged-out': { inject: injectB },
       },
     },
-    function Profile() { return <Text>Profile</Text>; }
+    function Profile() {
+      return <Text>Profile</Text>;
+    },
   );
-  expect(getScenario('profile')).toBeUndefined();
+  expect(getScenario('profile')).toBeDefined();
   expect(getScenario('profile/logged-in')).toBeDefined();
   expect(getScenario('profile/logged-out')).toBeDefined();
   expect(getScenario('profile/logged-in')?.inject).toBe(injectA);
@@ -105,7 +121,9 @@ test('variant inherits base inject when not overridden', () => {
         'dark-mode': { description: 'dark mode' },
       },
     },
-    function Settings() { return <Text>Settings</Text>; }
+    function Settings() {
+      return <Text>Settings</Text>;
+    },
   );
   expect(getScenario('settings/dark-mode')?.inject).toBe(baseInject);
 });

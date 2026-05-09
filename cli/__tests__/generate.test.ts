@@ -15,6 +15,44 @@ test('scanScenarios finds scenario() calls in source code', () => {
   expect(results[0]!.steps).toEqual([]);
 });
 
+test('scanScenarios finds aliased scenario imports', () => {
+  const source = `
+    import { scenario as preflightScenario } from 'react-native-preflight';
+    export default preflightScenario({
+      id: 'aliased-screen',
+      route: '/aliased-screen',
+    }, function MyScreen() { return null; });
+  `;
+  const results = scanScenarios(source, 'app/aliased-screen.tsx');
+  expect(results).toHaveLength(1);
+  expect(results[0]!.id).toBe('aliased-screen');
+});
+
+test('scanScenarios finds namespace scenario calls', () => {
+  const source = `
+    import * as preflight from 'react-native-preflight';
+    export default preflight.scenario({
+      id: 'namespace-screen',
+      route: '/namespace-screen',
+    }, function MyScreen() { return null; });
+  `;
+  const results = scanScenarios(source, 'app/namespace-screen.tsx');
+  expect(results).toHaveLength(1);
+  expect(results[0]!.id).toBe('namespace-screen');
+});
+
+test('scanScenarios ignores unrelated local scenario functions', () => {
+  const source = `
+    function scenario() {}
+    scenario({
+      id: 'not-preflight',
+      route: '/not-preflight',
+    });
+  `;
+  const results = scanScenarios(source, 'app/not-preflight.tsx');
+  expect(results).toHaveLength(0);
+});
+
 test('generateYaml creates valid Maestro YAML without steps', () => {
   const yaml = generateYaml({ id: 'my-screen', filePath: 'app/my-screen.tsx', steps: [] }, 'com.test.app');
   expect(yaml).toContain('appId: "com.test.app"');
@@ -23,6 +61,27 @@ test('generateYaml creates valid Maestro YAML without steps', () => {
   expect(yaml).toContain('takeScreenshot: ".maestro/snapshots/my-screen/current"');
   expect(yaml).toContain('# Add your test steps below');
   expect(yaml).toContain('waitForAnimationToEnd');
+});
+
+test('generateYaml includes configured launchApp options', () => {
+  const yaml = generateYaml(
+    { id: 'my-screen', filePath: 'app/my-screen.tsx', steps: [] },
+    'com.test.app',
+    '.maestro/snapshots',
+    undefined,
+    'preflight',
+    {
+      stopApp: true,
+      clearState: true,
+      clearKeychain: true,
+      permissions: {
+        notifications: 'allow',
+        location: 'deny',
+      },
+    },
+  );
+
+  expect(yaml).toContain('launchApp:\n    stopApp: true\n    clearState: true\n    clearKeychain: true\n    permissions:\n      notifications: allow\n      location: deny');
 });
 
 test('generateYaml includes waitForAnimationToEnd before screenshot', () => {
@@ -69,6 +128,26 @@ test('scanScenarios extracts test steps from source', () => {
     { see: 'hello' },
     { tap: 'btn' },
     { see: 'world' },
+  ]);
+});
+
+test('scanScenarios extracts test steps from helper object calls', () => {
+  const source = `
+    import { scenario } from 'react-native-preflight';
+    export default scenario({
+      id: 'demo',
+      route: '/demo',
+      test: (helpers) => [
+        helpers.see('hello'),
+        helpers.tap('btn'),
+      ],
+    }, function Demo() { return null; });
+  `;
+  const results = scanScenarios(source, 'app/demo.tsx');
+  expect(results).toHaveLength(1);
+  expect(results[0]!.steps).toEqual([
+    { see: 'hello' },
+    { tap: 'btn' },
   ]);
 });
 
@@ -253,4 +332,37 @@ test('generateYaml handles type step', () => {
   }, 'com.test.app');
   expect(yaml).toContain('tapOn:\n    id: "email-input"');
   expect(yaml).toContain('inputText: "test@test.com"');
+});
+
+test('generateYaml emits Maestro-valid wait steps without runScript', () => {
+  const yaml = generateYaml({
+    id: 'loader',
+    filePath: 'app/loader.tsx',
+    steps: [{ wait: 2000 }],
+  }, 'com.test.app');
+
+  expect(yaml).not.toContain('runScript');
+  expect(yaml).toContain('evalScript: ${(() => { const start = Date.now(); while (Date.now() - start < 2000) {} })()}');
+});
+
+test('scanScenarios warns when test steps are too dynamic to generate', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation();
+  const source = `
+    import { scenario } from 'react-native-preflight';
+    const buttonId = 'save';
+    export default scenario({
+      id: 'dynamic',
+      route: '/dynamic',
+      test: ({ tap, see }) => [
+        see('Ready'),
+        tap(buttonId),
+      ],
+    }, function Dynamic() { return null; });
+  `;
+
+  const results = scanScenarios(source, 'app/dynamic.tsx');
+
+  expect(results[0]!.steps).toEqual([{ see: 'Ready' }]);
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('unsupported tap() step'));
+  warn.mockRestore();
 });

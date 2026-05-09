@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added `launchApp` config for generated Maestro flows, including `stopApp`, `clearState`, `clearKeychain`, and `permissions`.
+- Added `scheme` prop to `<StateInjector>` for apps using a custom preflight deep link scheme.
+- Added support for aliased and namespace `scenario` imports in `preflight generate`.
+- Added support for `helpers.tap()`-style test helper calls in generated Maestro steps.
+
+### Changed
+
+- `<Preflight onNavigate>` now receives the scenario route instead of the scenario id, matching `<StateInjector onNavigate>`.
+- `scenario()` now registers the base scenario even when variants are configured, so both the base state and variants can be tested.
+- Generated `wait()` steps now use Maestro `evalScript` instead of `runScript`.
+- `isPreflightActive()` is set only after a valid scenario has been found and `inject()` has completed.
+
+### Fixed
+
+- `StateInjector` now matches only direct preflight URLs instead of embedded URL substrings.
+- `preflight init` avoids rewriting `app.json` when the configured scheme is already present.
+- `preflight init` can add the Babel plugin when `babel.config.js` has no existing `plugins` array.
+- `preflight test --snapshot` stores flow snapshots under stable flow-specific names.
+- `preflight test` reports a clear error when the `maestro` binary cannot be started.
+
 ## 0.1.5 (2026-03-24)
 
 ### New Test Helpers

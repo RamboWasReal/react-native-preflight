@@ -12,6 +12,7 @@ try {
 export interface StateInjectorProps {
   children: ReactNode;
   onNavigate?: (route: string) => void;
+  scheme?: string;
 }
 
 const VALID_ID_PATTERN = /^[a-zA-Z0-9_\-/]+$/;
@@ -32,12 +33,14 @@ function sanitizeObject(obj: unknown): Record<string, unknown> | undefined {
   return result;
 }
 
-function parsePreflightUrl(url: string): { id: string; state?: Record<string, unknown> } | null {
-  const marker = 'preflight://scenario/';
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
+function parsePreflightUrl(
+  url: string,
+  scheme: string,
+): { id: string; state?: Record<string, unknown> } | null {
+  const marker = `${scheme}://scenario/`;
+  if (!url.startsWith(marker)) return null;
 
-  const withoutScheme = url.slice(idx + marker.length);
+  const withoutScheme = url.slice(marker.length);
   const qIdx = withoutScheme.indexOf('?');
   const id = qIdx === -1 ? withoutScheme : withoutScheme.slice(0, qIdx);
   const queryString = qIdx === -1 ? undefined : withoutScheme.slice(qIdx + 1);
@@ -53,13 +56,16 @@ function parsePreflightUrl(url: string): { id: string; state?: Record<string, un
     const stateParam = params.get('state');
     if (stateParam) {
       if (stateParam.length > 10000) {
-        console.warn('[preflight] State param too large (max 10000 chars), ignoring');
+        console.warn(
+          '[preflight] State param too large (max 10000 chars), ignoring',
+        );
         return { id };
       }
       try {
-        const decoded = typeof atob === 'function'
-          ? atob(stateParam)
-          : Buffer.from(stateParam, 'base64').toString('utf-8');
+        const decoded =
+          typeof atob === 'function'
+            ? atob(stateParam)
+            : Buffer.from(stateParam, 'base64').toString('utf-8');
         const parsed = JSON.parse(decoded);
         state = sanitizeObject(parsed);
         if (!state) {
@@ -82,18 +88,25 @@ export function isPreflightActive(): boolean {
   return _preflightActive;
 }
 
-async function handlePreflightUrl(url: string, navigate: (route: string) => void): Promise<void> {
+async function handlePreflightUrl(
+  url: string,
+  navigate: (route: string) => void,
+  scheme: string,
+): Promise<void> {
   if (isHandling) return;
   isHandling = true;
   try {
-    const parsed = parsePreflightUrl(url);
+    const parsed = parsePreflightUrl(url, scheme);
     if (!parsed) return;
-    _preflightActive = true;
-
     const scenario = getScenario(parsed.id);
     if (!scenario) {
-      const available = getAllScenarios().map(s => s.id).join(', ') || 'none';
-      console.warn(`[preflight] Scenario "${parsed.id}" not found. Available: ${available}`);
+      const available =
+        getAllScenarios()
+          .map((s) => s.id)
+          .join(', ') || 'none';
+      console.warn(
+        `[preflight] Scenario "${parsed.id}" not found. Available: ${available}`,
+      );
       return;
     }
 
@@ -106,13 +119,18 @@ async function handlePreflightUrl(url: string, navigate: (route: string) => void
       }
     }
 
+    _preflightActive = true;
     navigate(scenario.route);
   } finally {
     isHandling = false;
   }
 }
 
-export function StateInjector({ children, onNavigate }: StateInjectorProps) {
+export function StateInjector({
+  children,
+  onNavigate,
+  scheme = 'preflight',
+}: StateInjectorProps) {
   const navigateRef = useRef(onNavigate);
   navigateRef.current = onNavigate;
 
@@ -123,7 +141,9 @@ export function StateInjector({ children, onNavigate }: StateInjectorProps) {
         return;
       }
       if (!expoRouter) {
-        console.warn('[preflight] expo-router not available. Provide an onNavigate prop to <StateInjector />.');
+        console.warn(
+          '[preflight] expo-router not available. Provide an onNavigate prop to <StateInjector />.',
+        );
         return;
       }
       expoRouter.router.push(route);
@@ -131,18 +151,18 @@ export function StateInjector({ children, onNavigate }: StateInjectorProps) {
 
     Linking.getInitialURL()
       .then((url) => {
-        if (url) handlePreflightUrl(url, navigate);
+        if (url) handlePreflightUrl(url, navigate, scheme);
       })
       .catch((error) => {
         console.warn('[preflight] Failed to get initial URL:', error);
       });
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      handlePreflightUrl(url, navigate);
+      handlePreflightUrl(url, navigate, scheme);
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [scheme]);
 
   return <>{children}</>;
 }

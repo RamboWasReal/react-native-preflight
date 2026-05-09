@@ -4,7 +4,9 @@ const registry = new Map<string, ScenarioEntry>();
 
 export function registerScenario(entry: ScenarioEntry): void {
   if (registry.has(entry.id)) {
-    console.warn(`[preflight] Scenario "${entry.id}" is already registered. Overwriting.`);
+    console.warn(
+      `[preflight] Scenario "${entry.id}" is already registered. Overwriting.`,
+    );
   }
   registry.set(entry.id, entry);
 }

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from '@babel/parser';
 import { detectSrcDir, validateScenarioId } from '../config';
-import type { PreflightConfig } from '../config';
+import type { LaunchAppConfig, PreflightConfig } from '../config';
 
 // Handle @babel/traverse CJS/ESM interop
 const traverseModule = require('@babel/traverse');
@@ -46,8 +46,46 @@ interface ScannedScenarioWithVariants extends ScannedScenario {
   env: Record<string, string>;
 }
 
-function extractTestSteps(testFnNode: any): TestStep[] {
+interface ExtractContext {
+  filePath?: string;
+  scenarioId?: string;
+}
+
+function formatExtractLocation(context?: ExtractContext): string {
+  const parts = [context?.filePath, context?.scenarioId ? `scenario "${context.scenarioId}"` : undefined].filter(Boolean);
+  return parts.length > 0 ? ` in ${parts.join(' ')}` : '';
+}
+
+function warnUnsupportedStep(helperName: string, context?: ExtractContext): void {
+  console.warn(
+    `[preflight] Warning: unsupported ${helperName}() step${formatExtractLocation(context)}. Use literal arguments so Maestro YAML can be generated.`,
+  );
+}
+
+function getHelperParamName(testFnNode: any): string | undefined {
+  const firstParam = testFnNode.params?.[0];
+  return firstParam?.type === 'Identifier' ? firstParam.name : undefined;
+}
+
+function getHelperCallName(callee: any, helperParamName?: string): string | undefined {
+  if (!callee) return undefined;
+  if (callee.type === 'Identifier') return callee.name;
+  if (
+    helperParamName &&
+    callee.type === 'MemberExpression' &&
+    !callee.computed &&
+    callee.object.type === 'Identifier' &&
+    callee.object.name === helperParamName &&
+    callee.property.type === 'Identifier'
+  ) {
+    return callee.property.name;
+  }
+  return undefined;
+}
+
+function extractTestSteps(testFnNode: any, context?: ExtractContext): TestStep[] {
   const steps: TestStep[] = [];
+  const helperParamName = getHelperParamName(testFnNode);
 
   // Get the array expression from the function body
   let arrayNode: any = null;
@@ -63,14 +101,17 @@ function extractTestSteps(testFnNode: any): TestStep[] {
     }
   }
 
-  if (!arrayNode) return steps;
+  if (!arrayNode) {
+    console.warn(
+      `[preflight] Warning: test()${formatExtractLocation(context)} must return an array literal for Maestro YAML generation.`,
+    );
+    return steps;
+  }
 
   for (const element of arrayNode.elements) {
     if (!element || element.type !== 'CallExpression') continue;
-    const callee = element.callee;
-    if (!callee || callee.type !== 'Identifier') continue;
-
-    const name = callee.name;
+    const name = getHelperCallName(element.callee, helperParamName);
+    if (!name) continue;
     const args = element.arguments;
 
     try {
@@ -78,6 +119,8 @@ function extractTestSteps(testFnNode: any): TestStep[] {
         case 'tap':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ tap: args[0].value });
+          } else {
+            warnUnsupportedStep('tap', context);
           }
           break;
         case 'see':
@@ -92,32 +135,44 @@ function extractTestSteps(testFnNode: any): TestStep[] {
               }
             }
             if (obj.id) steps.push({ see: obj as { id: string; text?: string } });
+          } else {
+            warnUnsupportedStep('see', context);
           }
           break;
         case 'notSee':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ notSee: args[0].value });
+          } else {
+            warnUnsupportedStep('notSee', context);
           }
           break;
         case 'type':
           if (args[0]?.type === 'StringLiteral' && args[1]?.type === 'StringLiteral') {
             steps.push({ type: [args[0].value, args[1].value] });
+          } else {
+            warnUnsupportedStep('type', context);
           }
           break;
         case 'wait':
           if (args[0]?.type === 'NumericLiteral') {
             steps.push({ wait: args[0].value });
+          } else {
+            warnUnsupportedStep('wait', context);
           }
           break;
         case 'scroll':
           if (args[0]?.type === 'StringLiteral' && args[1]?.type === 'StringLiteral') {
             steps.push({ scroll: [args[0].value, args[1].value] });
+          } else {
+            warnUnsupportedStep('scroll', context);
           }
           break;
         case 'swipe':
           if (args[0]?.type === 'StringLiteral') {
             const duration = args[1]?.type === 'NumericLiteral' ? args[1].value : undefined;
             steps.push({ swipe: [args[0].value, duration] });
+          } else {
+            warnUnsupportedStep('swipe', context);
           }
           break;
         case 'back':
@@ -129,11 +184,15 @@ function extractTestSteps(testFnNode: any): TestStep[] {
         case 'longPress':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ longPress: args[0].value });
+          } else {
+            warnUnsupportedStep('longPress', context);
           }
           break;
         case 'raw':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ raw: args[0].value });
+          } else {
+            warnUnsupportedStep('raw', context);
           }
           break;
       }
@@ -222,7 +281,7 @@ function resolveImportedFunction(identifierName: string, ast: any, filePath: str
   return null;
 }
 
-function extractTestFromProp(obj: any, ast?: any, filePath?: string): TestStep[] {
+function extractTestFromProp(obj: any, ast?: any, filePath?: string, scenarioId?: string): TestStep[] {
   const testProp = obj.properties.find(
     (p: any) =>
       (p.type === 'ObjectProperty' || p.type === 'ObjectMethod') &&
@@ -234,15 +293,18 @@ function extractTestFromProp(obj: any, ast?: any, filePath?: string): TestStep[]
     // If test is a reference to an imported function, resolve it
     if (fnNode.type === 'Identifier' && ast && filePath) {
       const resolved = resolveImportedFunction(fnNode.name, ast, filePath);
-      if (resolved) return extractTestSteps(resolved);
+      if (resolved) return extractTestSteps(resolved, { filePath, scenarioId });
+      console.warn(
+        `[preflight] Warning: could not resolve imported test function "${fnNode.name}" in ${filePath}. No Maestro steps generated.`,
+      );
       return [];
     }
-    return extractTestSteps(fnNode);
+    return extractTestSteps(fnNode, { filePath, scenarioId });
   }
   return [];
 }
 
-function extractVariants(firstArg: any, ast?: any, filePath?: string): ScannedVariant[] {
+function extractVariants(firstArg: any, ast?: any, filePath?: string, scenarioId?: string): ScannedVariant[] {
   const variantsProp = firstArg.properties.find(
     (p: any) =>
       p.type === 'ObjectProperty' &&
@@ -269,7 +331,7 @@ function extractVariants(firstArg: any, ast?: any, filePath?: string): ScannedVa
 
     if (prop.value.type !== 'ObjectExpression') continue;
 
-    const steps = extractTestFromProp(prop.value, ast, filePath);
+    const steps = extractTestFromProp(prop.value, ast, filePath, `${scenarioId}/${key}`);
     variants.push({ key, steps });
   }
 
@@ -336,10 +398,51 @@ export function scanScenarios(source: string, filePath: string): ScannedScenario
     plugins: ['jsx', 'typescript'],
   });
 
+  const scenarioBindings = new Set<string>();
+  const namespaceBindings = new Set<string>();
+
+  for (const node of ast.program.body) {
+    if (node.type !== 'ImportDeclaration' || node.source.value !== 'react-native-preflight') {
+      continue;
+    }
+    for (const specifier of node.specifiers) {
+      if (
+        specifier.type === 'ImportSpecifier' &&
+        specifier.local?.type === 'Identifier' &&
+        (
+          (specifier.imported.type === 'Identifier' && specifier.imported.name === 'scenario') ||
+          (specifier.imported.type === 'StringLiteral' && specifier.imported.value === 'scenario')
+        )
+      ) {
+        scenarioBindings.add(specifier.local.name);
+      } else if (
+        specifier.type === 'ImportNamespaceSpecifier' &&
+        specifier.local?.type === 'Identifier'
+      ) {
+        namespaceBindings.add(specifier.local.name);
+      }
+    }
+  }
+
+  if (scenarioBindings.size === 0 && namespaceBindings.size === 0) {
+    return results;
+  }
+
   traverse(ast, {
     CallExpression(nodePath: any) {
       const callee = nodePath.node.callee;
-      if (callee.type !== 'Identifier' || callee.name !== 'scenario') return;
+      const isScenarioCall =
+        (callee.type === 'Identifier' && scenarioBindings.has(callee.name)) ||
+        (
+          callee.type === 'MemberExpression' &&
+          !callee.computed &&
+          callee.object.type === 'Identifier' &&
+          namespaceBindings.has(callee.object.name) &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'scenario'
+        );
+
+      if (!isScenarioCall) return;
 
       const firstArg = nodePath.node.arguments[0];
       if (!firstArg || firstArg.type !== 'ObjectExpression') return;
@@ -361,8 +464,8 @@ export function scanScenarios(source: string, filePath: string): ScannedScenario
         return;
       }
 
-      const steps = extractTestFromProp(firstArg, ast, filePath);
-      const variants = extractVariants(firstArg, ast, filePath);
+      const steps = extractTestFromProp(firstArg, ast, filePath, id);
+      const variants = extractVariants(firstArg, ast, filePath, id);
       const flow = extractFlow(firstArg);
 
       // Parse env: { KEY: 'value' }
@@ -410,16 +513,40 @@ function escapeYamlString(value: string): string {
   return '"' + value + '"';
 }
 
+function formatLaunchApp(launchApp?: LaunchAppConfig): string[] {
+  const options = launchApp ?? { stopApp: false };
+  const lines = [`- launchApp:`];
+  const stopApp = options.stopApp ?? false;
+  lines.push(`    stopApp: ${stopApp}`);
+  if (options.clearState !== undefined) {
+    lines.push(`    clearState: ${options.clearState}`);
+  }
+  if (options.clearKeychain !== undefined) {
+    lines.push(`    clearKeychain: ${options.clearKeychain}`);
+  }
+  if (options.permissions && Object.keys(options.permissions).length > 0) {
+    lines.push(`    permissions:`);
+    for (const [permission, state] of Object.entries(options.permissions)) {
+      lines.push(`      ${permission}: ${state}`);
+    }
+  }
+  return lines;
+}
+
 const MAESTRO_COMMANDS = new Set([
   'launchApp', 'stopApp', 'clearState', 'clearKeychain',
+  'setPermissions',
   'tapOn', 'doubleTapOn', 'longPressOn', 'swipe', 'scroll',
   'scrollUntilVisible', 'inputText', 'eraseText', 'pressKey',
   'openLink', 'navigate', 'assertVisible', 'assertNotVisible',
-  'assertTrue', 'assertWithAI', 'takeScreenshot', 'setLocation',
-  'repeat', 'runFlow', 'runScript', 'waitForAnimationToEnd',
+  'assertTrue', 'assertWithAI', 'assertNoDefectsWithAI',
+  'extractTextWithAI', 'takeScreenshot', 'assertScreenshot',
+  'setLocation', 'setOrientation', 'setAirplaneMode',
+  'toggleAirplaneMode', 'travel',
+  'repeat', 'retry', 'runFlow', 'runScript', 'waitForAnimationToEnd',
   'extendedWaitUntil', 'evalScript', 'back', 'hideKeyboard',
-  'copyTextFrom', 'pasteText', 'addMedia', 'startRecording',
-  'stopRecording',
+  'copyTextFrom', 'setClipboard', 'pasteText', 'addMedia',
+  'startRecording', 'stopRecording', 'killApp',
 ]);
 
 function validateYaml(yaml: string, scenarioId: string): void {
@@ -457,8 +584,8 @@ function stepToYaml(step: TestStep): string {
     return `- tapOn:\n    id: ${escapeYamlString(step.type[0])}\n- inputText: ${escapeYamlString(step.type[1])}`;
   }
   if (step.wait) {
-    const clamped = Math.max(0, Math.min(60000, step.wait));
-    return `- runScript:\n    script: |\n      java.lang.Thread.sleep(${clamped})`;
+    const clamped = Math.round(Math.max(0, Math.min(60000, step.wait)));
+    return `- evalScript: \${(() => { const start = Date.now(); while (Date.now() - start < ${clamped}) {} })()}`;
   }
   if (step.scroll) {
     return `- scrollUntilVisible:\n    element:\n      id: ${escapeYamlString(step.scroll[0])}\n    direction: ${step.scroll[1]!.toUpperCase()}`;
@@ -482,7 +609,14 @@ function stepToYaml(step: TestStep): string {
   return '';
 }
 
-export function generateYaml(scenario: ScannedScenario, appId: AppId, snapshotsDir: string = '.maestro/snapshots', env?: Record<string, string>): string {
+export function generateYaml(
+  scenario: ScannedScenario,
+  appId: AppId,
+  snapshotsDir: string = '.maestro/snapshots',
+  env?: Record<string, string>,
+  scheme: string = 'preflight',
+  launchApp?: LaunchAppConfig,
+): string {
   // For variants, the assertVisible uses the base ID (the testID on the wrapper View)
   const baseId = scenario.id.includes('/') ? scenario.id.split('/')[0]! : scenario.id;
 
@@ -504,11 +638,10 @@ export function generateYaml(scenario: ScannedScenario, appId: AppId, snapshotsD
 
   lines.push(
     `---`,
-    `- launchApp:`,
-    `    stopApp: false`,
+    ...formatLaunchApp(launchApp),
     ``,
     `- openLink:`,
-    `    link: ${escapeYamlString('preflight://scenario/' + scenario.id)}`,
+    `    link: ${escapeYamlString(`${scheme}://scenario/` + scenario.id)}`,
     ``,
     `- assertVisible:`,
     `    id: ${escapeYamlString(baseId)}`,
@@ -540,6 +673,8 @@ export function generateFlowYaml(
   appId: AppId,
   snapshotsDir: string = '.maestro/snapshots',
   env?: Record<string, string>,
+  scheme: string = 'preflight',
+  launchApp?: LaunchAppConfig,
 ): string {
   const lines = [
     ...formatAppId(appId),
@@ -558,12 +693,11 @@ export function generateFlowYaml(
 
   lines.push(
     `---`,
-    `- launchApp:`,
-    `    stopApp: false`,
+    ...formatLaunchApp(launchApp),
     ``,
     `# Start: ${scenario.id}`,
     `- openLink:`,
-    `    link: ${escapeYamlString('preflight://scenario/' + scenario.id)}`,
+    `    link: ${escapeYamlString(`${scheme}://scenario/` + scenario.id)}`,
     ``,
     `- assertVisible:`,
     `    id: ${escapeYamlString(scenario.id)}`,
@@ -666,6 +800,12 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
   const allScenarios: ScannedScenario[] = [];
   for (const s of allScanned) {
     const env = Object.keys(s.env).length > 0 ? s.env : undefined;
+    allScenarios.push({
+      id: s.id,
+      filePath: s.filePath,
+      steps: s.steps,
+      env,
+    });
     if (s.variants.length > 0) {
       for (const v of s.variants) {
         allScenarios.push({
@@ -675,13 +815,6 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
           env,
         });
       }
-    } else {
-      allScenarios.push({
-        id: s.id,
-        filePath: s.filePath,
-        steps: s.steps,
-        env,
-      });
     }
   }
 
@@ -714,7 +847,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
 
     fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
 
-    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env);
+    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env, config.scheme, config.launchApp);
     validateYaml(yaml, s.id);
     const exists = fs.existsSync(yamlPath);
     fs.writeFileSync(yamlPath, yaml);
@@ -733,7 +866,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
       fs.mkdirSync(flowsDir, { recursive: true });
       const flowPath = path.join(flowsDir, `${s.id}.yaml`);
       const env = Object.keys(s.env).length > 0 ? s.env : undefined;
-      const yaml = generateFlowYaml(s, config.appId, config.snapshotsDir, env);
+      const yaml = generateFlowYaml(s, config.appId, config.snapshotsDir, env, config.scheme, config.launchApp);
       validateYaml(yaml, `flow-${s.id}`);
       const exists = fs.existsSync(flowPath);
       fs.writeFileSync(flowPath, yaml);

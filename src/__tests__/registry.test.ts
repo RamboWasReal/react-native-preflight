@@ -1,4 +1,9 @@
-import { registerScenario, getScenario, getAllScenarios, clearRegistry } from '../registry';
+import {
+  registerScenario,
+  getScenario,
+  getAllScenarios,
+  clearRegistry,
+} from '../registry';
 import type { ScenarioEntry } from '../types';
 
 afterEach(() => {
@@ -30,8 +35,6 @@ test('warns on duplicate id registration', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation();
   registerScenario({ id: 'dup', route: '/dup' });
   registerScenario({ id: 'dup', route: '/dup2' });
-  expect(warn).toHaveBeenCalledWith(
-    expect.stringContaining('dup')
-  );
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('dup'));
   warn.mockRestore();
 });

@@ -1,0 +1,29 @@
+appId: "com.preflight.example"
+tags:
+  - preflight
+  - "counter"
+  - "high-value"
+---
+- launchApp:
+    stopApp: false
+
+- openLink:
+    link: "preflight://scenario/counter/high-value"
+
+- assertVisible:
+    id: "counter"
+
+- assertVisible:
+    id: "count"
+    text: "99"
+
+- tapOn:
+    id: "increment"
+
+- assertVisible:
+    id: "count"
+    text: "100"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: ".maestro/snapshots/counter/high-value/current"

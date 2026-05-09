@@ -2,30 +2,25 @@ appId: "com.preflight.example"
 tags:
   - preflight
   - "todos"
+  - "with-items"
 ---
 - launchApp:
     stopApp: false
 
 - openLink:
-    link: "preflight://scenario/todos"
+    link: "preflight://scenario/todos/with-items"
 
 - assertVisible:
     id: "todos"
 
 - assertVisible:
-    id: "empty-state"
-
-- tapOn:
-    id: "todo-input"
-- inputText: "Buy milk"
-
-- tapOn:
-    id: "add-todo"
-
-- assertVisible:
     id: "todo-list"
     text: "Buy milk"
 
+- assertVisible:
+    id: "todo-list"
+    text: "Walk the dog"
+
 - waitForAnimationToEnd
 
-- takeScreenshot: ".maestro/snapshots/todos/current"
+- takeScreenshot: ".maestro/snapshots/todos/with-items/current"

@@ -10,7 +10,17 @@ export interface PreflightConfig {
   snapshotsDir: string;
   threshold: number;
   srcDir: string;
+  launchApp?: LaunchAppConfig;
 }
+
+export interface LaunchAppConfig {
+  stopApp?: boolean;
+  clearState?: boolean;
+  clearKeychain?: boolean;
+  permissions?: Record<string, string>;
+}
+
+const PERMISSION_STATES = new Set(['allow', 'deny', 'unset']);
 
 const DEFAULTS: PreflightConfig = {
   appId: '',
@@ -21,7 +31,7 @@ const DEFAULTS: PreflightConfig = {
   srcDir: '',
 };
 
-const CONFIG_KEYS: (keyof PreflightConfig)[] = ['appId', 'scheme', 'screensDir', 'snapshotsDir', 'threshold', 'srcDir'];
+const CONFIG_KEYS: (keyof PreflightConfig)[] = ['appId', 'scheme', 'screensDir', 'snapshotsDir', 'threshold', 'srcDir', 'launchApp'];
 
 const CONFIG_TYPES: Record<keyof PreflightConfig, string> = {
   appId: 'string',
@@ -30,6 +40,7 @@ const CONFIG_TYPES: Record<keyof PreflightConfig, string> = {
   snapshotsDir: 'string',
   threshold: 'number',
   srcDir: 'string',
+  launchApp: 'object',
 };
 
 function validateAppId(value: unknown): string | { ios: string; android: string } | undefined {
@@ -43,6 +54,44 @@ function validateAppId(value: unknown): string | { ios: string; android: string 
   return undefined;
 }
 
+function validateLaunchApp(value: unknown): LaunchAppConfig | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const source = value as Record<string, unknown>;
+  const result: LaunchAppConfig = {};
+
+  for (const key of ['stopApp', 'clearState', 'clearKeychain'] as const) {
+    if (source[key] === undefined) continue;
+    if (typeof source[key] === 'boolean') {
+      result[key] = source[key];
+    } else {
+      console.warn(`[preflight] Config "launchApp.${key}" should be a boolean. Ignoring.`);
+    }
+  }
+
+  if (source.permissions !== undefined) {
+    if (source.permissions && typeof source.permissions === 'object' && !Array.isArray(source.permissions)) {
+      const permissions: Record<string, string> = {};
+      for (const [name, state] of Object.entries(source.permissions as Record<string, unknown>)) {
+        if (typeof state === 'string' && PERMISSION_STATES.has(state)) {
+          permissions[name] = state;
+        } else if (typeof state === 'string') {
+          console.warn(`[preflight] Config "launchApp.permissions.${name}" should be allow, deny, or unset. Ignoring.`);
+        } else {
+          console.warn(`[preflight] Config "launchApp.permissions.${name}" should be a string. Ignoring.`);
+        }
+      }
+      if (Object.keys(permissions).length > 0) {
+        result.permissions = permissions;
+      }
+    } else {
+      console.warn('[preflight] Config "launchApp.permissions" should be an object. Ignoring.');
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function pickConfig(source: Record<string, unknown>): PreflightConfig {
   const config = { ...DEFAULTS };
   for (const key of CONFIG_KEYS) {
@@ -53,6 +102,15 @@ function pickConfig(source: Record<string, unknown>): PreflightConfig {
           config.appId = appId;
         } else {
           console.warn('[preflight] Config "appId" should be a string or { ios, android } object. Using default.');
+        }
+        continue;
+      }
+      if (key === 'launchApp') {
+        const launchApp = validateLaunchApp(source[key]);
+        if (launchApp !== undefined) {
+          config.launchApp = launchApp;
+        } else {
+          console.warn('[preflight] Config "launchApp" should be an object with Maestro launchApp options. Using default.');
         }
         continue;
       }

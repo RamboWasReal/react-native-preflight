@@ -20,34 +20,39 @@ export function scenario<P extends object>(
   Component: React.ComponentType<P>,
 ): React.ComponentType<P> {
   if (!config.id) {
-    console.warn('[preflight] scenario() called with empty id. Skipping registration.');
+    console.warn(
+      '[preflight] scenario() called with empty id. Skipping registration.',
+    );
     return Component;
   }
   if (!config.route) {
-    console.warn(`[preflight] scenario("${config.id}") called without a route. Skipping registration.`);
+    console.warn(
+      `[preflight] scenario("${config.id}") called without a route. Skipping registration.`,
+    );
     return Component;
   }
   if (!VALID_ID_PATTERN.test(config.id)) {
-    console.warn(`[preflight] scenario("${config.id}") has invalid id. Use only letters, numbers, hyphens, and underscores. Skipping registration.`);
+    console.warn(
+      `[preflight] scenario("${config.id}") has invalid id. Use only letters, numbers, hyphens, and underscores. Skipping registration.`,
+    );
     return Component;
   }
 
-  // Register base scenario (when no variants, or as fallback)
-  if (!config.variants) {
-    registerScenario({
-      id: config.id,
-      route: config.route,
-      description: config.description,
-      inject: config.inject,
-      test: config.test,
-    });
-  }
+  registerScenario({
+    id: config.id,
+    route: config.route,
+    description: config.description,
+    inject: config.inject,
+    test: config.test,
+  });
 
   // Register each variant as a separate scenario
   if (config.variants) {
     for (const [variantKey, variant] of Object.entries(config.variants)) {
       if (!VALID_ID_PATTERN.test(variantKey)) {
-        console.warn(`[preflight] scenario("${config.id}") variant "${variantKey}" has invalid key. Skipping.`);
+        console.warn(
+          `[preflight] scenario("${config.id}") variant "${variantKey}" has invalid key. Skipping.`,
+        );
         continue;
       }
       registerScenario({
@@ -69,7 +74,9 @@ export function scenario<P extends object>(
     );
   }
 
-  ScenarioWrapper.displayName = `Scenario(${Component.displayName || Component.name || 'Component'})`;
+  ScenarioWrapper.displayName = `Scenario(${
+    Component.displayName || Component.name || 'Component'
+  })`;
 
   return ScenarioWrapper;
 }

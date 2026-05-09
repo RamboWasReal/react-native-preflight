@@ -52,6 +52,34 @@ test('adds preflight scheme to app.json', () => {
   expect(written.expo.scheme).toContain('preflight');
 });
 
+test('does not rewrite app.json when scheme already exists', () => {
+  mockConfig.detectSrcDir.mockReturnValue({ srcDir: 'app', framework: 'expo-router' });
+  mockFs.existsSync.mockImplementation((p) => String(p).includes('app.json'));
+  mockFs.readFileSync.mockReturnValue(JSON.stringify({ expo: { scheme: ['myapp', 'preflight'] } }));
+
+  runInit('/fake/project');
+
+  const appJsonWrites = mockFs.writeFileSync.mock.calls.filter(
+    (call) => String(call[0]).includes('app.json')
+  );
+  expect(appJsonWrites).toHaveLength(0);
+});
+
+test('adds babel plugin when config has no plugins array', () => {
+  mockConfig.detectSrcDir.mockReturnValue({ srcDir: 'app', framework: 'expo-router' });
+  mockFs.existsSync.mockImplementation((p) => String(p).includes('babel.config.js'));
+  mockFs.readFileSync.mockReturnValue("module.exports = { presets: ['babel-preset-expo'] };\n");
+
+  runInit('/fake/project');
+
+  const writeCall = mockFs.writeFileSync.mock.calls.find(
+    (call) => String(call[0]).includes('babel.config.js')
+  );
+  expect(writeCall).toBeDefined();
+  expect(writeCall![1]).toContain("plugins: [");
+  expect(writeCall![1]).toContain("react-native-preflight/babel");
+});
+
 test('scaffolds __dev/preflight.tsx for expo-router', () => {
   mockConfig.detectSrcDir.mockReturnValue({ srcDir: 'app', framework: 'expo-router' });
   mockFs.existsSync.mockReturnValue(false);

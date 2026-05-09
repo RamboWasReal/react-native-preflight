@@ -48,8 +48,22 @@ test('uses onNavigate override when provided', async () => {
   fireEvent.press(getAllByText('Preview')[0]!);
 
   await waitFor(() => {
-    expect(onNavigate).toHaveBeenCalledWith('custom-nav');
+    expect(onNavigate).toHaveBeenCalledWith('/custom-nav');
     expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+});
+
+test('uses onNavigate override after inject succeeds', async () => {
+  const onNavigate = jest.fn();
+  const inject = jest.fn();
+  registerScenario({ id: 'custom-inject', route: '/custom-inject', inject });
+
+  const { getAllByText } = render(<Preflight onNavigate={onNavigate} />);
+  fireEvent.press(getAllByText('Preview')[0]!);
+
+  await waitFor(() => {
+    expect(inject).toHaveBeenCalledWith(undefined);
+    expect(onNavigate).toHaveBeenCalledWith('/custom-inject');
   });
 });
 

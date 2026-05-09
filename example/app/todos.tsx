@@ -73,7 +73,7 @@ export default scenario(
       useTodoStore.setState({ todos: [] });
     },
     test: () => [
-      see('empty-state'),
+      see({ id: 'empty-state' }),
       typeText('todo-input', 'Buy milk'),
       tap('add-todo'),
       see({ id: 'todo-list', text: 'Buy milk' }),

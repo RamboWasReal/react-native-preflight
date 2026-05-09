@@ -106,6 +106,23 @@ Add the confirmed appId to `package.json` under `"preflight": { "appId": "..." }
 ```
 This generates `appId: ${APP_ID}` in the YAML — Maestro resolves the value at runtime via `-e APP_ID=...`. Tests must be run with `--platform ios` or `--platform android`. Ask the user if their iOS and Android IDs differ.
 
+**Launch options:** If the app needs deterministic Maestro startup behavior, add `launchApp` under `preflight`:
+```json
+{
+  "preflight": {
+    "launchApp": {
+      "stopApp": true,
+      "clearState": true,
+      "clearKeychain": true,
+      "permissions": {
+        "notifications": "allow"
+      }
+    }
+  }
+}
+```
+Keep `clearState` off when `inject()` depends on persisted state created before the deep link runs.
+
 ### 6. Persist srcDir in config
 If the detected srcDir is not the default `app/`, persist it in `package.json` under `"preflight": { "srcDir": "..." }` so that `generate` and `test` commands pick it up automatically.
 
@@ -175,7 +192,7 @@ For each selected screen, **read the full file** and modify it:
      - `longPress('itemId')` — long press element by testID
      - `type('inputId', 'value')` — type text into input
      - `notSee('text')` — assert text not visible
-     - `wait(2000)` — wait N milliseconds
+     - `wait(2000)` — pause the Maestro flow for N milliseconds; prefer visible assertions, scrolls, or animation waits when possible
      - `scroll('elementId', 'down')` — scroll until element is visible (generates `scrollUntilVisible`)
      - `swipe('left')` — swipe in a direction (default 400ms duration)
      - `swipe('up', 200)` — swipe with custom duration

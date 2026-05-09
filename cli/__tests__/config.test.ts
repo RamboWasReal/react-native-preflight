@@ -74,6 +74,72 @@ test('loads srcDir from config', () => {
   expect(config.srcDir).toBe('src/app');
 });
 
+test('loads launchApp options from config', () => {
+  const pkg = {
+    preflight: {
+      appId: 'com.test.app',
+      launchApp: {
+        stopApp: true,
+        clearState: true,
+        clearKeychain: true,
+        permissions: {
+          notifications: 'allow',
+          location: 'deny',
+        },
+      },
+    },
+  };
+  mockFs.existsSync.mockImplementation((p: unknown) =>
+    !String(p).includes('preflight.config.js')
+  );
+  mockFs.readFileSync.mockReturnValue(JSON.stringify(pkg));
+
+  const config = loadConfig('/fake/project');
+  expect(config.launchApp).toEqual({
+    stopApp: true,
+    clearState: true,
+    clearKeychain: true,
+    permissions: {
+      notifications: 'allow',
+      location: 'deny',
+    },
+  });
+});
+
+test('ignores invalid launchApp options', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation();
+  const pkg = {
+    preflight: {
+      appId: 'com.test.app',
+      launchApp: {
+        stopApp: 'yes',
+        clearState: true,
+        permissions: {
+          notifications: 1,
+          camera: 'allow',
+          location: 'maybe',
+        },
+      },
+    },
+  };
+  mockFs.existsSync.mockImplementation((p: unknown) =>
+    !String(p).includes('preflight.config.js')
+  );
+  mockFs.readFileSync.mockReturnValue(JSON.stringify(pkg));
+
+  const config = loadConfig('/fake/project');
+  expect(config.launchApp).toEqual({
+    clearState: true,
+    permissions: {
+      camera: 'allow',
+    },
+  });
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('launchApp.stopApp'));
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('launchApp.permissions.notifications'));
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('launchApp.permissions.location'));
+  warn.mockRestore();
+});
+
 describe('detectSrcDir', () => {
   const defaults: PreflightConfig = {
     appId: '',

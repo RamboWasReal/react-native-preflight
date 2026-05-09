@@ -1,6 +1,6 @@
 # preflight-example
 
-Demo app showing `react-native-preflight` with 3 scenarios: counter, todo list, and profile.
+Demo app showing `react-native-preflight` with 5 scenarios: counter, counter/high-value, todos, todos/with-items, and profile.
 
 ## Setup
 
@@ -15,7 +15,9 @@ npx expo run:ios
 | ID | Route | Description |
 |----|-------|-------------|
 | `counter` | `/counter` | Simple counter with increment/decrement |
-| `todos` | `/todos` | Todo list with pre-filled items |
+| `counter/high-value` | `/counter` | Counter starting at 99 |
+| `todos` | `/todos` | Empty todo list with add action |
+| `todos/with-items` | `/todos` | Pre-populated todo list |
 | `profile` | `/profile` | User profile with injected data |
 
 ## Run Maestro Tests

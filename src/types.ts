@@ -18,7 +18,10 @@ export interface TestHelpers {
   type: (id: string, text: string) => TestStep;
   wait: (ms: number) => TestStep;
   scroll: (id: string, direction: 'up' | 'down' | 'left' | 'right') => TestStep;
-  swipe: (direction: 'up' | 'down' | 'left' | 'right', duration?: number) => TestStep;
+  swipe: (
+    direction: 'up' | 'down' | 'left' | 'right',
+    duration?: number,
+  ) => TestStep;
   back: () => TestStep;
   hideKeyboard: () => TestStep;
   longPress: (id: string) => TestStep;
@@ -69,5 +72,5 @@ export interface ScenarioConfig {
 export type ScenarioEntry = ScenarioConfig & { variantOf?: string };
 
 export interface PreflightProps {
-  onNavigate?: (scenarioId: string) => void;
+  onNavigate?: (route: string) => void;
 }
