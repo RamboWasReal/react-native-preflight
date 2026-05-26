@@ -25,7 +25,7 @@ const config = {
   srcDir: '',
 };
 
-function createMockProcess(output: string, exitCode: number) {
+function createMockProcess(output: string, exitCode: number, stderr = '') {
   const proc = new EventEmitter() as any;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
@@ -33,7 +33,8 @@ function createMockProcess(output: string, exitCode: number) {
 
   // Emit output and close on next tick
   process.nextTick(() => {
-    proc.stdout.emit('data', Buffer.from(output));
+    if (output) proc.stdout.emit('data', Buffer.from(output));
+    if (stderr) proc.stderr.emit('data', Buffer.from(stderr));
     proc.emit('close', exitCode);
   });
 
@@ -87,20 +88,22 @@ test('runs maestro for a single scenario', async () => {
 });
 
 test('runs all yaml files when --all', async () => {
-  mockFs.existsSync.mockReturnValue(true);
+  mockFs.existsSync.mockImplementation((filePath) => !String(filePath).includes('/.maestro/flows'));
   mockFs.mkdirSync.mockReturnValue(undefined);
   (mockFs.readdirSync as jest.Mock).mockReturnValue([
     { name: 'a.yaml', isDirectory: () => false, isFile: () => true },
     { name: 'b.yaml', isDirectory: () => false, isFile: () => true },
   ]);
-  (mockSpawn as any).mockReturnValue(
-    createMockProcess('[Passed] a (2s)\n[Passed] b (3s)\n', 0)
-  );
+  (mockSpawn as any).mockImplementation((_cmd: string, args: string[]) => {
+    const flowPath = args[args.length - 1]!;
+    const flowName = flowPath.includes('b.yaml') ? 'b' : 'a';
+    return createMockProcess(`[Passed] ${flowName} (2s)\n`, 0);
+  });
 
   const log = jest.spyOn(console, 'log').mockImplementation();
   await runTest(undefined, { all: true }, '/project', config);
 
-  expect(mockSpawn).toHaveBeenCalledTimes(1);
+  expect(mockSpawn).toHaveBeenCalledTimes(2);
   log.mockRestore();
 });
 
@@ -113,6 +116,22 @@ test('reports failure when maestro exits non-zero', async () => {
 
   const log = jest.spyOn(console, 'log').mockImplementation();
   await expect(runTest('counter', {}, '/project', config)).rejects.toThrow('exit');
+  expect(mockExit).toHaveBeenCalledWith(1);
+  log.mockRestore();
+});
+
+test('prints raw maestro stderr when non-zero output is not parseable', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('', 1, 'Failed to parse flow: mapping values are not allowed here\n'),
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await expect(runTest('counter', {}, '/project', config)).rejects.toThrow('exit');
+
+  expect(log).toHaveBeenCalledWith(expect.stringContaining('Maestro error:'));
+  expect(log).toHaveBeenCalledWith(expect.stringContaining('Failed to parse flow'));
   expect(mockExit).toHaveBeenCalledWith(1);
   log.mockRestore();
 });

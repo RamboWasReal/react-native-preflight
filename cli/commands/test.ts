@@ -39,6 +39,7 @@ interface FlowResult {
   passed: boolean;
   duration?: string;
   failReason?: string;
+  rawStderr?: string;
 }
 
 function findYamlFilesRecursively(dir: string): string[] {
@@ -157,105 +158,119 @@ async function promptScenarioSelection(screensDir: string, projectRoot: string):
   return { yamls: response.scenarios, isFlow };
 }
 
-function runMaestroWithStreaming(
-  tempDir: string,
+async function runMaestroWithStreaming(
+  flowPaths: string[],
   maestroOutput: string,
   projectRoot: string,
   flowToName: Map<string, string>,
   total: number,
   envArgs: string[] = [],
 ): Promise<{ results: FlowResult[]; debugPath?: string; exitCode: number; rawStderr: string }> {
-  return new Promise((resolve) => {
-    const results: FlowResult[] = [];
-    let debugPath: string | undefined;
-    let completed = 0;
-    let currentFlow: string | undefined;
-    const stderrChunks: string[] = [];
+  const results: FlowResult[] = [];
+  let debugPath: string | undefined;
+  let completed = 0;
+  const allStderrChunks: string[] = [];
+  let finalExitCode = 0;
 
-    renderProgress(total, 0);
+  renderProgress(total, 0);
 
-    const proc = spawn('maestro', ['test', ...envArgs, '--output', maestroOutput, tempDir], {
-      cwd: projectRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+  for (const flowPath of flowPaths) {
+    const flowName = path.basename(flowPath, '.yaml');
+    const displayName = flowToName.get(flowName) ?? flowName;
+    renderProgress(total, completed, displayName);
 
-    let buffer = '';
+    const run = await new Promise<{ parsed: boolean; exitCode: number; rawStderr: string; failReason?: string }>((runResolve) => {
+      let parsed = false;
+      let failReason: string | undefined;
+      const stderrChunks: string[] = [];
+      let buffer = '';
 
-    function processLine(line: string) {
-      // Multi-test: [Passed] name (Xs)
-      const passedMatch = line.match(/\[Passed\]\s+(.+?)\s+\((\d+)s\)/);
-      if (passedMatch) {
-        const flowName = passedMatch[1]!;
-        const displayName = flowToName.get(flowName) ?? flowName;
-        results.push({ name: flowName, displayName, passed: true, duration: passedMatch[2]! + 's' });
-        completed++;
-        renderProgress(total, completed);
-        return;
-      }
+      const proc = spawn('maestro', ['test', ...envArgs, '--output', maestroOutput, flowPath], {
+        cwd: projectRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
 
-      // Multi-test: [Failed] name (Xs) (reason)
-      const failedMatch = line.match(/\[Failed\]\s+(.+?)\s+\((\d+)s\)\s*\((.+)\)/);
-      if (failedMatch) {
-        const flowName = failedMatch[1]!;
-        const displayName = flowToName.get(flowName) ?? flowName;
-        results.push({ name: flowName, displayName, passed: false, duration: failedMatch[2]! + 's', failReason: failedMatch[3]! });
-        completed++;
-        renderProgress(total, completed);
-        return;
-      }
+      function processLine(line: string) {
+        const passedMatch = line.match(/\[Passed\]\s+(.+?)\s+\((\d+)s\)/);
+        if (passedMatch) {
+          const parsedFlowName = passedMatch[1]!;
+          const parsedDisplayName = flowToName.get(parsedFlowName) ?? displayName;
+          results.push({ name: parsedFlowName, displayName: parsedDisplayName, passed: true, duration: passedMatch[2]! + 's' });
+          parsed = true;
+          return;
+        }
 
-      // Multi-test: [Failed] name (Xs) — no reason
-      const failedNoReason = line.match(/\[Failed\]\s+(.+?)\s+\((\d+)s\)/);
-      if (failedNoReason) {
-        const flowName = failedNoReason[1]!;
-        const displayName = flowToName.get(flowName) ?? flowName;
-        results.push({ name: flowName, displayName, passed: false, duration: failedNoReason[2]! + 's' });
-        completed++;
-        renderProgress(total, completed);
-        return;
-      }
+        const failedMatch = line.match(/\[Failed\]\s+(.+?)\s+\((\d+)s\)\s*\((.+)\)/);
+        if (failedMatch) {
+          const parsedFlowName = failedMatch[1]!;
+          const parsedDisplayName = flowToName.get(parsedFlowName) ?? displayName;
+          results.push({ name: parsedFlowName, displayName: parsedDisplayName, passed: false, duration: failedMatch[2]! + 's', failReason: failedMatch[3]! });
+          parsed = true;
+          return;
+        }
 
-      // Detect current flow starting (Maestro logs flow names as they begin)
-      const flowStart = line.match(/Running\s+(.+?)\.{3}|Executing\s+(.+)/);
-      if (flowStart) {
-        currentFlow = flowStart[1] ?? flowStart[2];
-        if (currentFlow) {
-          const displayName = flowToName.get(currentFlow) ?? currentFlow;
-          renderProgress(total, completed, displayName);
+        const failedNoReason = line.match(/\[Failed\]\s+(.+?)\s+\((\d+)s\)/);
+        if (failedNoReason) {
+          const parsedFlowName = failedNoReason[1]!;
+          const parsedDisplayName = flowToName.get(parsedFlowName) ?? displayName;
+          results.push({ name: parsedFlowName, displayName: parsedDisplayName, passed: false, duration: failedNoReason[2]! + 's' });
+          parsed = true;
+          return;
+        }
+
+        const debugMatch = line.match(/(\/\S+\/\.maestro\/tests\/\S+)/);
+        if (debugMatch) {
+          debugPath = debugMatch[1]!;
+        }
+
+        if (!failReason) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('>')) {
+            failReason = trimmed;
+          }
         }
       }
 
-      // Debug path
-      const debugMatch = line.match(/(\/\S+\/\.maestro\/tests\/\S+)/);
-      if (debugMatch) {
-        debugPath = debugMatch[1]!;
+      function processBuffer(data: string) {
+        buffer += data;
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          processLine(line);
+        }
       }
-    }
 
-    function processBuffer(data: string) {
-      buffer += data;
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!; // Keep incomplete last line in buffer
-      for (const line of lines) {
-        processLine(line);
-      }
-    }
+      proc.stdout.on('data', (data: Buffer) => processBuffer(data.toString()));
+      proc.stderr.on('data', (data: Buffer) => {
+        const text = data.toString();
+        stderrChunks.push(text);
+        processBuffer(text);
+      });
 
-    proc.stdout.on('data', (data: Buffer) => processBuffer(data.toString()));
-    proc.stderr.on('data', (data: Buffer) => {
-      const text = data.toString();
-      stderrChunks.push(text);
-      processBuffer(text);
+      proc.on('close', (code) => {
+        if (buffer.trim()) processLine(buffer);
+        const exitCode = code ?? 1;
+        runResolve({ parsed, exitCode, rawStderr: stderrChunks.join(''), failReason });
+      });
     });
 
-    proc.on('close', (code) => {
-      // Process remaining buffer
-      if (buffer.trim()) processLine(buffer);
-      // Clear progress line
-      process.stdout.write(c.clearLine);
-      resolve({ results, debugPath, exitCode: code ?? 1, rawStderr: stderrChunks.join('') });
-    });
-  });
+    allStderrChunks.push(run.rawStderr);
+    if (run.exitCode !== 0) finalExitCode = run.exitCode;
+    if (!run.parsed) {
+      results.push({
+        name: flowName,
+        displayName,
+        passed: run.exitCode === 0,
+        failReason: run.exitCode === 0 ? undefined : run.failReason,
+        rawStderr: run.exitCode === 0 ? undefined : run.rawStderr,
+      });
+    }
+    completed++;
+    renderProgress(total, completed);
+  }
+
+  process.stdout.write(c.clearLine);
+  return { results, debugPath, exitCode: finalExitCode, rawStderr: allStderrChunks.join('') };
 }
 
 export async function runTest(
@@ -319,6 +334,7 @@ export async function runTest(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-'));
   try {
     const flowToName = new Map<string, string>();
+    const tempFlowPaths: string[] = [];
     for (const yaml of yamlFiles) {
       const isFlow = flowFiles.has(yaml);
       const name = isFlow
@@ -328,6 +344,7 @@ export async function runTest(
       const tempPath = path.join(tempDir, flowName + '.yaml');
       fs.copyFileSync(yaml, tempPath);
       flowToName.set(flowName, name);
+      tempFlowPaths.push(tempPath);
     }
 
     const total = yamlFiles.length;
@@ -349,7 +366,7 @@ export async function runTest(
         console.log(`\n  ${c.yellow(`Retry ${attempt}/${maxRetries}`)} — re-running failed tests...\n`);
       }
       const run = await runMaestroWithStreaming(
-        tempDir, maestroOutput, projectRoot, flowToName, total, envArgs,
+        tempFlowPaths, maestroOutput, projectRoot, flowToName, total, envArgs,
       );
       results = run.results;
       debugPath = run.debugPath;
@@ -375,6 +392,12 @@ export async function runTest(
       for (const r of results) {
         if (!r.passed) {
           console.log(formatFailure(r.displayName, r.failReason, debugPath));
+          if (r.rawStderr?.trim()) {
+            console.log(`\n  ${c.dim('Maestro error:')}`);
+            for (const line of r.rawStderr.trim().split('\n')) {
+              console.log(`  ${c.red(line)}`);
+            }
+          }
         }
       }
     } else if (!allPassed) {
