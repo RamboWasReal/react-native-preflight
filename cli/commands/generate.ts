@@ -422,6 +422,11 @@ function escapeYamlString(value: string): string {
   return '"' + value + '"';
 }
 
+function routeToLink(route: string, scheme: string): string {
+  const normalized = route.startsWith('/') ? route.slice(1) : route;
+  return `${scheme}://${normalized}`;
+}
+
 const MAESTRO_COMMANDS = new Set([
   'launchApp', 'stopApp', 'clearState', 'clearKeychain',
   'tapOn', 'doubleTapOn', 'longPressOn', 'swipe', 'scroll',
@@ -449,7 +454,7 @@ function validateYaml(yaml: string, scenarioId: string): void {
   }
 }
 
-function stepToYaml(step: TestStep): string {
+function stepToYaml(step: TestStep, scheme: string = 'preflight'): string {
   if (step.tap) {
     return `- tapOn:\n    id: ${escapeYamlString(step.tap)}`;
   }
@@ -488,13 +493,25 @@ function stepToYaml(step: TestStep): string {
   if (step.longPress) {
     return `- longPressOn:\n    id: ${escapeYamlString(step.longPress)}`;
   }
+  if (step.navigate !== undefined) {
+    return `- openLink:\n    link: ${escapeYamlString(routeToLink(step.navigate, scheme))}`;
+  }
+  if (step.openLink !== undefined) {
+    return `- openLink:\n    link: ${escapeYamlString(step.openLink)}`;
+  }
   if (step.raw) {
     return step.raw;
   }
   return '';
 }
 
-export function generateYaml(scenario: ScannedScenario, appId: AppId, snapshotsDir: string = '.maestro/snapshots', env?: Record<string, string>): string {
+export function generateYaml(
+  scenario: ScannedScenario,
+  appId: AppId,
+  snapshotsDir: string = '.maestro/snapshots',
+  env?: Record<string, string>,
+  scheme: string = 'preflight',
+): string {
   // For variants, the assertVisible uses the base ID (the testID on the wrapper View)
   const baseId = scenario.id.includes('/') ? scenario.id.split('/')[0]! : scenario.id;
 
@@ -529,7 +546,7 @@ export function generateYaml(scenario: ScannedScenario, appId: AppId, snapshotsD
   if (scenario.steps.length > 0) {
     lines.push('');
     for (const step of scenario.steps) {
-      const yaml = stepToYaml(step);
+      const yaml = stepToYaml(step, scheme);
       if (yaml) lines.push(yaml);
       lines.push('');
     }
@@ -552,6 +569,7 @@ export function generateFlowYaml(
   appId: AppId,
   snapshotsDir: string = '.maestro/snapshots',
   env?: Record<string, string>,
+  scheme: string = 'preflight',
 ): string {
   const lines = [
     ...formatAppId(appId),
@@ -585,7 +603,7 @@ export function generateFlowYaml(
   if (scenario.steps.length > 0) {
     lines.push('');
     for (const step of scenario.steps) {
-      const yaml = stepToYaml(step);
+      const yaml = stepToYaml(step, scheme);
       if (yaml) lines.push(yaml);
       lines.push('');
     }
@@ -603,7 +621,7 @@ export function generateFlowYaml(
       lines.push(`          id: ${escapeYamlString(flowStep.screen)}`);
       if (flowStep.steps.length > 0) {
         for (const step of flowStep.steps) {
-          const yaml = stepToYaml(step);
+          const yaml = stepToYaml(step, scheme);
           if (yaml) {
             // Indent for runFlow commands
             lines.push('      ' + yaml.replace(/\n/g, '\n      '));
@@ -619,7 +637,7 @@ export function generateFlowYaml(
       if (flowStep.steps.length > 0) {
         lines.push('');
         for (const step of flowStep.steps) {
-          const yaml = stepToYaml(step);
+          const yaml = stepToYaml(step, scheme);
           if (yaml) lines.push(yaml);
           lines.push('');
         }
@@ -726,7 +744,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
 
     fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
 
-    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env);
+    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env, config.scheme);
     validateYaml(yaml, s.id);
     const exists = fs.existsSync(yamlPath);
     fs.writeFileSync(yamlPath, yaml);
@@ -745,7 +763,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
       fs.mkdirSync(flowsDir, { recursive: true });
       const flowPath = path.join(flowsDir, `${s.id}.yaml`);
       const env = Object.keys(s.env).length > 0 ? s.env : undefined;
-      const yaml = generateFlowYaml(s, config.appId, config.snapshotsDir, env);
+      const yaml = generateFlowYaml(s, config.appId, config.snapshotsDir, env, config.scheme);
       validateYaml(yaml, `flow-${s.id}`);
       const exists = fs.existsSync(flowPath);
       fs.writeFileSync(flowPath, yaml);

@@ -92,6 +92,73 @@ test('scanScenarios extracts navigate and openLink steps', () => {
   ]);
 });
 
+test('generateYaml converts navigate step to openLink with default scheme', () => {
+  const yaml = generateYaml({
+    id: 'home',
+    filePath: 'app/home.tsx',
+    steps: [{ navigate: '/settings' }],
+  }, 'com.test.app');
+  expect(yaml).toContain('openLink:\n    link: "preflight://settings"');
+});
+
+test('generateYaml converts navigate step without leading slash', () => {
+  const yaml = generateYaml({
+    id: 'home',
+    filePath: 'app/home.tsx',
+    steps: [{ navigate: 'settings' }],
+  }, 'com.test.app');
+  expect(yaml).toContain('openLink:\n    link: "preflight://settings"');
+});
+
+test('generateYaml converts empty navigate route to scheme root', () => {
+  const yaml = generateYaml({
+    id: 'home',
+    filePath: 'app/home.tsx',
+    steps: [{ navigate: '' }],
+  }, 'com.test.app');
+  expect(yaml).toContain('openLink:\n    link: "preflight://"');
+});
+
+test('generateYaml uses configured scheme for navigate step', () => {
+  const yaml = generateYaml({
+    id: 'home',
+    filePath: 'app/home.tsx',
+    steps: [{ navigate: '/settings' }],
+  }, 'com.test.app', '.maestro/snapshots', undefined, 'myapp');
+  expect(yaml).toContain('openLink:\n    link: "myapp://settings"');
+});
+
+test('generateYaml converts openLink step without changing URL', () => {
+  const yaml = generateYaml({
+    id: 'home',
+    filePath: 'app/home.tsx',
+    steps: [{ openLink: 'myapp://settings' }],
+  }, 'com.test.app');
+  expect(yaml).toContain('openLink:\n    link: "myapp://settings"');
+});
+
+test('generateFlowYaml converts navigate and openLink steps', () => {
+  const { generateFlowYaml } = require('../commands/generate');
+  const yaml = generateFlowYaml({
+    id: 'signup',
+    filePath: 'app/signup.tsx',
+    steps: [{ tap: 'submit-btn' }],
+    variants: [],
+    flow: [
+      {
+        screen: 'settings',
+        steps: [
+          { navigate: '/settings' },
+          { openLink: 'myapp://help' },
+        ],
+      },
+    ],
+    env: {},
+  }, 'com.test.app');
+  expect(yaml).toContain('openLink:\n    link: "preflight://settings"');
+  expect(yaml).toContain('openLink:\n    link: "myapp://help"');
+});
+
 test('scanScenarios extracts test steps from shorthand method syntax', () => {
   const source = `
     import { scenario } from 'react-native-preflight';
