@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 (2026-05-26)
+
+### Improvements
+
+- Run Maestro YAML files individually so `preflight test --all` can report each scenario or flow as it completes.
+- Keep scenario wrapper `testID`s visible to native E2E tools by disabling React Native view flattening on the wrapper.
+
+### Bug Fixes
+
+- Preserve and print raw Maestro stderr for non-parseable failures, such as YAML parse errors or Maestro startup crashes.
+
 ## 0.1.5 (2026-03-24)
 
 ### New Test Helpers
