@@ -181,8 +181,10 @@ For each selected screen, **read the full file** and modify it:
      - `swipe('up', 200)` — swipe with custom duration
      - `back()` — press back button
      - `hideKeyboard()` — dismiss the keyboard
+     - `navigate('/settings')` — open an in-app route via the configured scheme
+     - `openLink('myapp://settings')` — open an explicit deep link or app link unchanged
      - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML for any unsupported command
-     - Test functions can be imported from external files (e.g. `test: myImportedTest`). The generator follows single-level imports to resolve steps. Use this to keep screen files lean when test logic grows large.
+     - Test and flow action functions can be imported from external files (e.g. `test: myImportedTest`, `actions: myImportedActions`). The generator follows single-level imports to resolve steps. Use this to keep screen files lean when test logic grows large.
    - `variants`: optional. Use when a screen needs to be tested in multiple states (e.g., logged in vs logged out). Each variant gets its own YAML in a subdirectory.
 3. Add `testID` props to interactive elements (buttons, inputs) and key display elements (titles, counts) if they don't already have them
 4. Convert the default export function to a named function inside `scenario()`
@@ -269,6 +271,7 @@ export default scenario({
   ],
   flow: [
     { screen: 'setup', actions: ({ tap }) => [tap('skip-btn')] },
+    { screen: 'settings', actions: ({ navigate }) => [navigate('/settings')] },
     { screen: 'home' },
   ],
 }, SignupScreen);
@@ -284,7 +287,8 @@ Both appear in the interactive picker (`npx preflight test`). Flows are tagged w
 - **Read the screens first.** Follow the actual navigation logic — don't guess which screen comes after which.
 - **`test()` runs first**, then `flow` continues to subsequent screens via real navigation (tapping buttons).
 - **`screen` must match the `id` of another scenario.** The `assertVisible` uses that ID as the testID.
-- **`actions` uses the same helpers** as `test()`: `tap()`, `type()`, `see()`, `scroll()`, `swipe()`, `back()`, `hideKeyboard()`, `longPress()`, `raw()`.
+- **`actions` uses the same helpers** as `test()`: `tap()`, `type()`, `see()`, `scroll()`, `swipe()`, `back()`, `hideKeyboard()`, `longPress()`, `navigate()`, `openLink()`, `raw()`.
+- **Use `navigate(route)` for in-app routes.** It generates Maestro `openLink` with the configured scheme, so `navigate('/settings')` becomes `preflight://settings` by default. Use `openLink(url)` when you need an exact URL, callback, or external app link.
 - **`skipIf`** makes a step conditional: `{ screen: 'onboarding', skipIf: 'home', actions: ... }` — skip this step if `home` testID is already visible (user already past this screen).
 - **Keep flows short** — 2-5 screens max. If it's longer, break it into sub-flows.
 
