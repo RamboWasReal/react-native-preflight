@@ -9,6 +9,8 @@ export type TestStep =
   | { back: true }
   | { hideKeyboard: true }
   | { longPress: string }
+  | { navigate: string }
+  | { openLink: string }
   | { raw: string };
 
 export interface TestHelpers {
@@ -22,6 +24,8 @@ export interface TestHelpers {
   back: () => TestStep;
   hideKeyboard: () => TestStep;
   longPress: (id: string) => TestStep;
+  navigate: (route: string) => TestStep;
+  openLink: (url: string) => TestStep;
   raw: (yaml: string) => TestStep;
 }
 
@@ -36,6 +40,8 @@ export const testHelpers: TestHelpers = {
   back: () => ({ back: true }),
   hideKeyboard: () => ({ hideKeyboard: true }),
   longPress: (id) => ({ longPress: id }),
+  navigate: (route) => ({ navigate: route }),
+  openLink: (url) => ({ openLink: url }),
   raw: (yaml) => ({ raw: yaml }),
 };
 

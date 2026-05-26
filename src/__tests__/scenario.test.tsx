@@ -2,6 +2,7 @@ import { render } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { scenario } from '../scenario';
 import { getScenario, clearRegistry } from '../registry';
+import { testHelpers } from '../types';
 
 afterEach(() => {
   clearRegistry();
@@ -34,6 +35,14 @@ test('wraps component with testID View', () => {
   );
   const { getByTestId } = render(<Wrapped />);
   expect(getByTestId('testid-test')).toBeTruthy();
+});
+
+test('testHelpers.navigate creates navigate step', () => {
+  expect(testHelpers.navigate('/settings')).toEqual({ navigate: '/settings' });
+});
+
+test('testHelpers.openLink creates openLink step', () => {
+  expect(testHelpers.openLink('myapp://settings')).toEqual({ openLink: 'myapp://settings' });
 });
 
 test('passes inject function to registry', () => {
