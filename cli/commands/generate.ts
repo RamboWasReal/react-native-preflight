@@ -288,7 +288,7 @@ function extractVariants(firstArg: any, ast?: any, filePath?: string): ScannedVa
   return variants;
 }
 
-function extractFlow(firstArg: any): ScannedFlowStep[] {
+function extractFlow(firstArg: any, ast?: any, filePath?: string): ScannedFlowStep[] {
   const flowProp = firstArg.properties.find(
     (p: any) =>
       p.type === 'ObjectProperty' &&
@@ -322,7 +322,12 @@ function extractFlow(firstArg: any): ScannedFlowStep[] {
     let steps: TestStep[] = [];
     if (actionsProp) {
       const fnNode = actionsProp.type === 'ObjectMethod' ? actionsProp : actionsProp.value;
-      steps = extractTestSteps(fnNode);
+      if (fnNode.type === 'Identifier' && ast && filePath) {
+        const resolved = resolveImportedFunction(fnNode.name, ast, filePath);
+        steps = resolved ? extractTestSteps(resolved) : [];
+      } else {
+        steps = extractTestSteps(fnNode);
+      }
     }
     // Parse skipIf
     const skipIfProp = element.properties.find(
@@ -375,7 +380,7 @@ export function scanScenarios(source: string, filePath: string): ScannedScenario
 
       const steps = extractTestFromProp(firstArg, ast, filePath);
       const variants = extractVariants(firstArg, ast, filePath);
-      const flow = extractFlow(firstArg);
+      const flow = extractFlow(firstArg, ast, filePath);
 
       // Parse env: { KEY: 'value' }
       const env: Record<string, string> = {};

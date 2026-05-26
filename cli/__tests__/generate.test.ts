@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { scanScenarios, generateYaml } from '../commands/generate';
 
 test('scanScenarios finds scenario() calls in source code', () => {
@@ -266,6 +269,40 @@ test('scanScenarios extracts navigation helpers from flow actions', () => {
     { navigate: '/settings' },
     { openLink: 'myapp://help' },
   ]);
+});
+
+test('scanScenarios extracts navigation helpers from imported flow actions', () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-flow-actions-'));
+  const helperPath = path.join(fixtureDir, 'flowActions.ts');
+  const screenPath = path.join(fixtureDir, 'signup.tsx');
+  fs.writeFileSync(helperPath, `
+    export const goToSettings = ({ navigate, openLink }) => [
+      navigate('/settings'),
+      openLink('myapp://help'),
+    ];
+  `);
+
+  try {
+    const source = `
+      import { scenario } from 'react-native-preflight';
+      import { goToSettings } from './flowActions';
+      export default scenario({
+        id: 'signup',
+        route: '/signup',
+        flow: [
+          { screen: 'settings', actions: goToSettings },
+        ],
+      }, function Signup() { return null; });
+    `;
+    const results = scanScenarios(source, screenPath);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.flow[0]!.steps).toEqual([
+      { navigate: '/settings' },
+      { openLink: 'myapp://help' },
+    ]);
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  }
 });
 
 test('generateFlowYaml creates multi-screen YAML', () => {
