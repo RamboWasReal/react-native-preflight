@@ -20,6 +20,8 @@ interface TestStep {
   hideKeyboard?: true;
   longPress?: string;
   raw?: string;
+  navigate?: string;
+  openLink?: string;
 }
 
 interface ScannedScenario {
@@ -134,6 +136,16 @@ function extractTestSteps(testFnNode: any): TestStep[] {
         case 'raw':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ raw: args[0].value });
+          }
+          break;
+        case 'navigate':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ navigate: args[0].value });
+          }
+          break;
+        case 'openLink':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ openLink: args[0].value });
           }
           break;
       }

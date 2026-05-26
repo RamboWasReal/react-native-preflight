@@ -72,6 +72,26 @@ test('scanScenarios extracts test steps from source', () => {
   ]);
 });
 
+test('scanScenarios extracts navigate and openLink steps', () => {
+  const source = `
+    import { scenario } from 'react-native-preflight';
+    export default scenario({
+      id: 'settings-entry',
+      route: '/home',
+      test: ({ navigate, openLink }) => [
+        navigate('/settings'),
+        openLink('myapp://profile'),
+      ],
+    }, function Home() { return null; });
+  `;
+  const results = scanScenarios(source, 'app/home.tsx');
+  expect(results).toHaveLength(1);
+  expect(results[0]!.steps).toEqual([
+    { navigate: '/settings' },
+    { openLink: 'myapp://profile' },
+  ]);
+});
+
 test('scanScenarios extracts test steps from shorthand method syntax', () => {
   const source = `
     import { scenario } from 'react-native-preflight';
@@ -154,6 +174,31 @@ test('scanScenarios extracts flow steps', () => {
   expect(results[0]!.flow[0]!.steps).toEqual([{ tap: 'skip-btn' }]);
   expect(results[0]!.flow[1]!.screen).toBe('home');
   expect(results[0]!.flow[1]!.steps).toEqual([]);
+});
+
+test('scanScenarios extracts navigation helpers from flow actions', () => {
+  const source = `
+    import { scenario } from 'react-native-preflight';
+    export default scenario({
+      id: 'signup',
+      route: '/signup',
+      flow: [
+        {
+          screen: 'settings',
+          actions: ({ navigate, openLink }) => [
+            navigate('/settings'),
+            openLink('myapp://help'),
+          ],
+        },
+      ],
+    }, function Signup() { return null; });
+  `;
+  const results = scanScenarios(source, 'app/signup.tsx');
+  expect(results).toHaveLength(1);
+  expect(results[0]!.flow[0]!.steps).toEqual([
+    { navigate: '/settings' },
+    { openLink: 'myapp://help' },
+  ]);
 });
 
 test('generateFlowYaml creates multi-screen YAML', () => {
