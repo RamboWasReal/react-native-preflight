@@ -63,7 +63,7 @@ export function scenario<P extends object>(
 
   function ScenarioWrapper(props: P) {
     return (
-      <View testID={config.id} style={{ flex: 1 }}>
+      <View collapsable={false} testID={config.id} style={{ flex: 1 }}>
         <Component {...props} />
       </View>
     );

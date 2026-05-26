@@ -45,6 +45,15 @@ test('testHelpers.openLink creates openLink step', () => {
   expect(testHelpers.openLink('myapp://settings')).toEqual({ openLink: 'myapp://settings' });
 });
 
+test('keeps scenario testID visible to native E2E tools', () => {
+  const Wrapped = scenario(
+    { id: 'native-testid-test', route: '/native-testid-test' },
+    function MyScreen() { return <Text>Inner</Text>; }
+  );
+  const { getByTestId } = render(<Wrapped />);
+  expect(getByTestId('native-testid-test').props.collapsable).toBe(false);
+});
+
 test('passes inject function to registry', () => {
   const inject = jest.fn();
   scenario(
