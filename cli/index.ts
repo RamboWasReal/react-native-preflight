@@ -32,6 +32,8 @@ program
   .option('--snapshot', 'Capture screenshots')
   .option('--retry <count>', 'Retry failed tests N times')
   .option('--platform <platform>', 'Target platform (ios or android)')
+  .option('--device <id>', 'Target device ID to pass to Maestro')
+  .option('--udid <id>', 'Alias for --device')
   .action(async (id, options) => {
     const config = loadConfig(process.cwd());
     await runTest(id, options, process.cwd(), config);

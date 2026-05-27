@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import prompts from 'prompts';
 import { validateScenarioId, type PreflightConfig } from '../config';
+import { injectIosPostOpenLinkHandlers } from '../inject-ios-post-open-link-handlers';
 import { runGenerate } from './generate';
 
 function resolveAppId(config: PreflightConfig, platform?: 'ios' | 'android'): { appId: string; env?: [string, string] } {
@@ -31,6 +32,8 @@ interface TestOptions {
   snapshot?: boolean;
   retry?: string;
   platform?: 'ios' | 'android';
+  device?: string;
+  udid?: string;
 }
 
 interface FlowResult {
@@ -165,6 +168,8 @@ async function runMaestroWithStreaming(
   flowToName: Map<string, string>,
   total: number,
   envArgs: string[] = [],
+  platformArgs: string[] = [],
+  deviceArgs: string[] = [],
 ): Promise<{ results: FlowResult[]; debugPath?: string; exitCode: number; rawStderr: string }> {
   const results: FlowResult[] = [];
   let debugPath: string | undefined;
@@ -185,7 +190,7 @@ async function runMaestroWithStreaming(
       const stderrChunks: string[] = [];
       let buffer = '';
 
-      const proc = spawn('maestro', ['test', ...envArgs, '--output', maestroOutput, flowPath], {
+      const proc = spawn('maestro', ['test', ...platformArgs, ...deviceArgs, ...envArgs, '--output', maestroOutput, flowPath], {
         cwd: projectRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -342,7 +347,10 @@ export async function runTest(
         : getScenarioName(screensDir, yaml);
       const flowName = name.replace(/[[\] ]/g, '').replace(/\//g, '--');
       const tempPath = path.join(tempDir, flowName + '.yaml');
-      fs.copyFileSync(yaml, tempPath);
+      const sourceYaml = fs.readFileSync(yaml, 'utf8');
+      const tempYaml =
+        options.platform === 'ios' ? injectIosPostOpenLinkHandlers(sourceYaml) : sourceYaml;
+      fs.writeFileSync(tempPath, tempYaml);
       flowToName.set(flowName, name);
       tempFlowPaths.push(tempPath);
     }
@@ -355,6 +363,9 @@ export async function runTest(
 
     const maxRetries = options.retry ? Math.max(0, parseInt(options.retry, 10)) : 0;
     const envArgs = resolved.env ? ['-e', `${resolved.env[0]}=${resolved.env[1]}`] : [];
+    const platformArgs = options.platform ? ['--platform', options.platform] : [];
+    const deviceId = options.device ?? options.udid;
+    const deviceArgs = deviceId ? ['--device', deviceId] : [];
     let attempt = 0;
     let results: FlowResult[] = [];
     let debugPath: string | undefined;
@@ -366,7 +377,7 @@ export async function runTest(
         console.log(`\n  ${c.yellow(`Retry ${attempt}/${maxRetries}`)} — re-running failed tests...\n`);
       }
       const run = await runMaestroWithStreaming(
-        tempFlowPaths, maestroOutput, projectRoot, flowToName, total, envArgs,
+        tempFlowPaths, maestroOutput, projectRoot, flowToName, total, envArgs, platformArgs, deviceArgs,
       );
       results = run.results;
       debugPath = run.debugPath;

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1 (2026-05-27)
+
+### Bug Fixes
+
+- On `preflight test --platform ios`, inject conditional Maestro steps after each `openLink` in temporary flow copies to dismiss common iOS simulator overlays when they appear: the system deep-link confirmation ("Open in …?") and the Expo Dev Client developer menu onboarding sheet. Source `.maestro` YAML files are unchanged; Android runs are unchanged.
+
+## 0.3.0 (2026-05-27)
+
+### Added
+
+- Add `preflight test --device <id>` and `preflight test --udid <id>` to target a specific Maestro device explicitly.
+
+### Bug Fixes
+
+- Pass `--platform ios|android` through to `maestro test` so Maestro selects the requested device platform instead of auto-selecting another visible simulator or emulator.
+- Keep `--retry` re-runs on the same requested Maestro platform and device while preserving existing `APP_ID` environment arguments.
+
 ## 0.2.0 (2026-05-26)
 
 ### Improvements

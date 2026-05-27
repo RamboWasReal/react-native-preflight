@@ -55,7 +55,13 @@ beforeEach(() => {
   mockOs.tmpdir.mockReturnValue('/tmp');
   mockFs.mkdtempSync.mockReturnValue('/tmp/preflight-abc');
   mockFs.rmSync.mockReturnValue(undefined);
-  mockFs.copyFileSync.mockReturnValue(undefined);
+  mockFs.readFileSync.mockReturnValue(`---
+- openLink:
+    link: "preflight://scenario/counter"
+- assertVisible:
+    id: "counter"
+`);
+  mockFs.writeFileSync.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -189,6 +195,262 @@ test('passes -e APP_ID to maestro when multi-platform appId with --platform', as
     expect.arrayContaining(['-e', 'APP_ID=com.test.ios']),
     expect.anything()
   );
+  log.mockRestore();
+});
+
+test('passes --platform ios to maestro when requested', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'ios' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['test', '--platform', 'ios']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+test('passes --platform android to maestro when requested', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'android' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['test', '--platform', 'android']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+test('keeps platform and env args when retrying failed tests', async () => {
+  const multiConfig = {
+    ...config,
+    appId: { ios: 'com.test.ios', android: 'com.test.android' } as any,
+  };
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any)
+    .mockImplementationOnce(() =>
+      createMockProcess('[Failed] counter (10s) (Assertion is false: id: counter is visible)\n', 1)
+    )
+    .mockImplementationOnce(() =>
+      createMockProcess('[Passed] counter (3s)\n', 0)
+    );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'ios', retry: '1' }, '/project', multiConfig);
+
+  expect(mockSpawn).toHaveBeenCalledTimes(2);
+  for (const call of mockSpawn.mock.calls) {
+    expect(call[1]).toEqual(expect.arrayContaining(['test', '--platform', 'ios', '-e', 'APP_ID=com.test.ios']));
+  }
+  log.mockRestore();
+});
+
+test('passes --device to maestro when requested', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { device: 'emulator-5554' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['test', '--device', 'emulator-5554']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+test('passes --udid to maestro as a device selector', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { udid: 'booted-simulator-id' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['test', '--device', 'booted-simulator-id']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+test('keeps device when retrying failed tests', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any)
+    .mockImplementationOnce(() =>
+      createMockProcess('[Failed] counter (10s) (Assertion is false: id: counter is visible)\n', 1)
+    )
+    .mockImplementationOnce(() =>
+      createMockProcess('[Passed] counter (3s)\n', 0)
+    );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { device: 'emulator-5554', retry: '1' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledTimes(2);
+  for (const call of mockSpawn.mock.calls) {
+    expect(call[1]).toEqual(expect.arrayContaining(['test', '--device', 'emulator-5554']));
+  }
+  log.mockRestore();
+});
+
+test('passes platform and device to maestro when both are requested', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(
+    createMockProcess('[Passed] counter (3s)\n', 0)
+  );
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'ios', device: 'booted-simulator-id' }, '/project', config);
+
+  expect(mockSpawn).toHaveBeenCalledWith(
+    'maestro',
+    expect.arrayContaining(['test', '--platform', 'ios', '--device', 'booted-simulator-id']),
+    expect.anything()
+  );
+  log.mockRestore();
+});
+
+const IOS_OPEN_LINK_PROMPT_HANDLER = `platform: iOS
+      visible:
+        text: "Open in .*"
+    commands:
+      - tapOn:
+          text: "Open"`;
+
+const IOS_DEV_MENU_HANDLER = `platform: iOS
+      visible:
+        text: "This is the developer menu.*"
+    commands:
+      - tapOn:
+          text: "Continue"`;
+
+function getTempFlowWrittenContent(): string {
+  const writeCall = mockFs.writeFileSync.mock.calls.find(
+    (call) => typeof call[0] === 'string' && String(call[0]).includes('/tmp/preflight-abc'),
+  );
+  return writeCall ? String(writeCall[1]) : '';
+}
+
+test('iOS temp flow copy injects both overlay handlers after openLink', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(createMockProcess('[Passed] counter (3s)\n', 0));
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'ios' }, '/project', config);
+
+  const written = getTempFlowWrittenContent();
+  expect(written).toContain(IOS_OPEN_LINK_PROMPT_HANDLER);
+  expect(written).toContain(IOS_DEV_MENU_HANDLER);
+  expect(written.indexOf(IOS_OPEN_LINK_PROMPT_HANDLER)).toBeGreaterThan(written.indexOf('openLink'));
+  expect(written.indexOf(IOS_DEV_MENU_HANDLER)).toBeGreaterThan(written.indexOf(IOS_OPEN_LINK_PROMPT_HANDLER));
+  expect(written).toContain('- assertVisible:');
+  expect(mockFs.copyFileSync).not.toHaveBeenCalled();
+  log.mockRestore();
+});
+
+test('Android temp flow copy is unchanged', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(createMockProcess('[Passed] counter (3s)\n', 0));
+
+  const sourceYaml = `---
+- openLink:
+    link: "preflight://scenario/counter"
+- assertVisible:
+    id: "counter"
+`;
+  mockFs.readFileSync.mockReturnValue(sourceYaml);
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', { platform: 'android' }, '/project', config);
+
+  expect(getTempFlowWrittenContent()).toBe(sourceYaml);
+  log.mockRestore();
+});
+
+test('temp flow without openLink is unchanged on iOS', async () => {
+  const sourceYaml = `---
+- launchApp:
+    stopApp: false
+- assertVisible:
+    id: "home"
+`;
+  mockFs.readFileSync.mockReturnValue(sourceYaml);
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(createMockProcess('[Passed] home (2s)\n', 0));
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('home', { platform: 'ios' }, '/project', config);
+
+  expect(getTempFlowWrittenContent()).toBe(sourceYaml);
+  log.mockRestore();
+});
+
+test('iOS temp flow injects both handlers after every openLink', async () => {
+  const sourceYaml = `---
+- openLink:
+    link: "preflight://scenario/a"
+- openLink:
+    link: "preflight://scenario/b"
+- assertVisible:
+    id: "b"
+`;
+  mockFs.readFileSync.mockReturnValue(sourceYaml);
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(createMockProcess('[Passed] ab (2s)\n', 0));
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('ab', { platform: 'ios' }, '/project', config);
+
+  const written = getTempFlowWrittenContent();
+  expect(written.match(/text: "Open in \.\*"/g)).toHaveLength(2);
+  expect(written.match(/text: "This is the developer menu\.\*"/g)).toHaveLength(2);
+  expect(written).toContain('- assertVisible:\n    id: "b"');
+  log.mockRestore();
+});
+
+test('default test run without platform does not inject iOS overlay handlers', async () => {
+  mockFs.existsSync.mockReturnValue(true);
+  mockFs.mkdirSync.mockReturnValue(undefined);
+  (mockSpawn as any).mockReturnValue(createMockProcess('[Passed] counter (3s)\n', 0));
+
+  const sourceYaml = `---
+- openLink:
+    link: "preflight://scenario/counter"
+`;
+  mockFs.readFileSync.mockReturnValue(sourceYaml);
+
+  const log = jest.spyOn(console, 'log').mockImplementation();
+  await runTest('counter', {}, '/project', config);
+
+  expect(getTempFlowWrittenContent()).toBe(sourceYaml);
   log.mockRestore();
 });
 

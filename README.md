@@ -202,6 +202,8 @@ module.exports = {
 | `npx preflight test <id>` | Run Maestro test for one scenario |
 | `npx preflight test --all` | Run all scenarios (screens + flows) |
 | `npx preflight test --retry 2` | Retry all tests up to N times on failure |
+| `npx preflight test --platform ios` | Run on the requested Maestro platform |
+| `npx preflight test --device emulator-5554` | Run on a specific Maestro device ID |
 | `npx preflight test <id> --snapshot` | Run and capture screenshot |
 | `npx preflight snapshot:compare` | Compare current vs baseline screenshots |
 | `npx preflight snapshot:compare --ci` | Same, but exit 1 on regression |
@@ -244,6 +246,26 @@ Generated YAML uses `appId: ${APP_ID}` — Maestro resolves the value at runtime
 npx preflight test --platform ios
 npx preflight test --all --platform android
 ```
+
+Preflight forwards the same platform to `maestro test`, so Maestro selects the requested iOS simulator or Android emulator platform even when devices for both platforms are visible.
+
+On iOS runs (`--platform ios`), Preflight injects conditional steps after each `openLink` in the temporary Maestro flows used for the test run. When present, these dismiss:
+
+- the system deep-link confirmation ("Open in …?") by tapping **Open**
+- the Expo Dev Client developer menu onboarding sheet by tapping **Continue**
+
+If an overlay is absent, the corresponding step is skipped. Your checked-in `.maestro` YAML files are not modified.
+
+To target one device directly, pass a Maestro device ID:
+
+```bash
+npx preflight test card --device emulator-5554
+npx preflight test card --udid booted-simulator-id
+npx preflight test card --platform ios --device booted-simulator-id
+```
+
+`--udid` is an alias for `--device`; both are forwarded to Maestro as `--device <id>`.
+Maestro also accepts comma-separated IDs for multi-device runs.
 
 A plain string `appId` still works without `--platform`.
 
