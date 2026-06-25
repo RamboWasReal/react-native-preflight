@@ -78,19 +78,19 @@ export default scenario(
 - `route` — Must match the file-based route (Expo Router) or screen name (React Navigation)
 - `inject()` — Called BEFORE navigation to set up deterministic state (zero flash)
 - `test()` — Optional. Generates Maestro test steps via `npx preflight generate`:
-  - `see('text')` — assert visible text
-  - `see({ id: 'testID' })` — assert testID visible
-  - `tap('buttonId')` — tap element by testID
-  - `longPress('itemId')` — long press element by testID
-  - `type('inputId', 'value')` — type text into input
-  - `notSee('text')` — assert text not visible
-  - `wait(2000)` — wait N milliseconds
-  - `scroll('elementId', 'down')` — scroll until element is visible (`scrollUntilVisible`)
-  - `swipe('left')` — swipe in a direction (default 400ms)
-  - `swipe('up', 200)` — swipe with custom duration
-  - `back()` — press back button
-  - `hideKeyboard()` — dismiss the keyboard
-  - `raw('- setLocation:\n    latitude: 45.5')` — inject raw Maestro YAML
+  - Rich selectors supported: `see({ id: 'foo', text: 'Bar', enabled: true, below: 'Title' })`, same for `tap`, `longPress`, `doubleTap`, `notSee`, `copyTextFrom`
+  - `see('text' | selector)` / `notSee(...)`
+  - `tap(selector)` / `longPress(selector)` / `doubleTap(selector)`
+  - `type('inputId', 'value')`
+  - `eraseText(5)` / `eraseText()` (all)
+  - `pressKey('Enter')`
+  - `extendedWaitUntil({ visible: 'Submit', timeout: 8000 })`
+  - `assertTrue('1 + 1 === 2')`
+  - `setLocation(48.85, 2.35)`
+  - `copyTextFrom(selector)` / `pasteText()` / `setClipboard('foo')`
+  - `assertScreenshot('login')` or `assertScreenshot({ path: '...', cropOn: 'main', thresholdPercentage: 98 })`
+  - `wait(2000)`, `scroll(...)`, `swipe(...)`, `back()`, `hideKeyboard()`, `navigate()`, `openLink()`
+  - `raw('...')` escape hatch still available
 
   Test functions can be extracted to separate files and imported:
 
@@ -297,6 +297,21 @@ scenario({
 ```
 
 These become Maestro `env:` variables, accessible in YAML via `${TEST_EMAIL}`.
+
+You can also pass `launchOptions` to control the initial `launchApp`:
+
+```tsx
+scenario({
+  id: 'home',
+  route: '/home',
+  launchOptions: {
+    clearState: true,
+    permissions: { notifications: 'allow', location: 'deny' },
+    stopApp: true,
+  },
+  // ...
+}, HomeScreen);
+```
 
 ## Multi-Screen Flows
 

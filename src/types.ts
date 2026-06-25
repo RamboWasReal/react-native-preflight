@@ -1,47 +1,96 @@
+export type ElementSelector =
+  | string
+  | {
+      text?: string;
+      id?: string;
+      index?: number;
+      enabled?: boolean;
+      checked?: boolean;
+      focused?: boolean;
+      selected?: boolean;
+      below?: string | ElementSelector;
+      above?: string | ElementSelector;
+      leftOf?: string | ElementSelector;
+      rightOf?: string | ElementSelector;
+      containsChild?: string | ElementSelector;
+      containsDescendants?: Array<string | ElementSelector>;
+      point?: string;
+    };
+
 export type TestStep =
-  | { tap: string }
-  | { see: string | { id: string; text?: string } }
-  | { notSee: string }
+  | { tap: string | ElementSelector }
+  | { see: string | ElementSelector }
+  | { notSee: string | ElementSelector }
   | { type: [id: string, text: string] }
   | { wait: number }
   | { scroll: [id: string, direction: 'up' | 'down' | 'left' | 'right'] }
   | { swipe: [direction: 'up' | 'down' | 'left' | 'right', duration?: number] }
   | { back: true }
   | { hideKeyboard: true }
-  | { longPress: string }
+  | { longPress: string | ElementSelector }
+  | { doubleTap: string | ElementSelector }
   | { navigate: string }
   | { openLink: string }
+  | { eraseText?: number }
+  | { pressKey: string }
+  | { extendedWaitUntil: { visible?: ElementSelector; notVisible?: ElementSelector; timeout?: number } }
+  | { assertTrue: string }
+  | { setLocation: { latitude: number; longitude: number } }
+  | { copyTextFrom: string | ElementSelector }
+  | { pasteText: true }
+  | { setClipboard: string }
+  | { assertScreenshot: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number } }
   | { raw: string };
 
 export interface TestHelpers {
-  tap: (id: string) => TestStep;
-  see: (target: string | { id: string; text?: string }) => TestStep;
-  notSee: (text: string) => TestStep;
+  tap: (target: string | ElementSelector) => TestStep;
+  see: (target: string | ElementSelector) => TestStep;
+  notSee: (target: string | ElementSelector) => TestStep;
   type: (id: string, text: string) => TestStep;
   wait: (ms: number) => TestStep;
   scroll: (id: string, direction: 'up' | 'down' | 'left' | 'right') => TestStep;
   swipe: (direction: 'up' | 'down' | 'left' | 'right', duration?: number) => TestStep;
   back: () => TestStep;
   hideKeyboard: () => TestStep;
-  longPress: (id: string) => TestStep;
+  longPress: (target: string | ElementSelector) => TestStep;
+  doubleTap: (target: string | ElementSelector) => TestStep;
   navigate: (route: string) => TestStep;
   openLink: (url: string) => TestStep;
+  eraseText: (count?: number) => TestStep;
+  pressKey: (key: string) => TestStep;
+  extendedWaitUntil: (opts: { visible?: ElementSelector; notVisible?: ElementSelector; timeout?: number }) => TestStep;
+  assertTrue: (condition: string) => TestStep;
+  setLocation: (lat: number, lng: number) => TestStep;
+  copyTextFrom: (target: string | ElementSelector) => TestStep;
+  pasteText: () => TestStep;
+  setClipboard: (text: string) => TestStep;
+  assertScreenshot: (nameOrOpts: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number }) => TestStep;
   raw: (yaml: string) => TestStep;
 }
 
 export const testHelpers: TestHelpers = {
-  tap: (id) => ({ tap: id }),
+  tap: (target) => ({ tap: target }),
   see: (target) => ({ see: target }),
-  notSee: (text) => ({ notSee: text }),
+  notSee: (target) => ({ notSee: target }),
   type: (id, text) => ({ type: [id, text] }),
   wait: (ms) => ({ wait: ms }),
   scroll: (id, direction) => ({ scroll: [id, direction] }),
   swipe: (direction, duration) => ({ swipe: [direction, duration] }),
   back: () => ({ back: true }),
   hideKeyboard: () => ({ hideKeyboard: true }),
-  longPress: (id) => ({ longPress: id }),
+  longPress: (target) => ({ longPress: target }),
+  doubleTap: (target) => ({ doubleTap: target }),
   navigate: (route) => ({ navigate: route }),
   openLink: (url) => ({ openLink: url }),
+  eraseText: (count) => ({ eraseText: count }),
+  pressKey: (key) => ({ pressKey: key }),
+  extendedWaitUntil: (opts) => ({ extendedWaitUntil: opts }),
+  assertTrue: (condition) => ({ assertTrue: condition }),
+  setLocation: (latitude, longitude) => ({ setLocation: { latitude, longitude } }),
+  copyTextFrom: (target) => ({ copyTextFrom: target }),
+  pasteText: () => ({ pasteText: true }),
+  setClipboard: (text) => ({ setClipboard: text }),
+  assertScreenshot: (nameOrOpts) => ({ assertScreenshot: nameOrOpts }),
   raw: (yaml) => ({ raw: yaml }),
 };
 
@@ -58,6 +107,13 @@ export interface FlowStep {
   skipIf?: string;
 }
 
+export interface LaunchOptions {
+  clearState?: boolean;
+  clearKeychain?: boolean;
+  stopApp?: boolean;
+  permissions?: Record<string, 'allow' | 'deny' | 'unset'>;
+}
+
 export interface ScenarioConfig {
   id: string;
   route: string;
@@ -70,6 +126,8 @@ export interface ScenarioConfig {
   flow?: FlowStep[];
   /** Environment variables passed to Maestro YAML. */
   env?: Record<string, string>;
+  /** Options passed to launchApp in generated Maestro YAML. */
+  launchOptions?: LaunchOptions;
 }
 
 export type ScenarioEntry = ScenarioConfig & { variantOf?: string };

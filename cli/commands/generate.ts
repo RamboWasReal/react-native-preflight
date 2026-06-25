@@ -8,20 +8,46 @@ import type { PreflightConfig } from '../config';
 const traverseModule = require('@babel/traverse');
 const traverse = traverseModule.default || traverseModule;
 
+interface ElementSelector {
+  text?: string;
+  id?: string;
+  index?: number;
+  enabled?: boolean;
+  checked?: boolean;
+  focused?: boolean;
+  selected?: boolean;
+  below?: string | ElementSelector;
+  above?: string | ElementSelector;
+  leftOf?: string | ElementSelector;
+  rightOf?: string | ElementSelector;
+  containsChild?: string | ElementSelector;
+  point?: string;
+}
+
 interface TestStep {
-  tap?: string;
-  see?: string | { id: string; text?: string };
-  notSee?: string;
+  tap?: string | ElementSelector;
+  see?: string | ElementSelector;
+  notSee?: string | ElementSelector;
   type?: [string, string];
   wait?: number;
   scroll?: [string, string];
   swipe?: [string, number?];
   back?: true;
   hideKeyboard?: true;
-  longPress?: string;
+  longPress?: string | ElementSelector;
+  doubleTap?: string | ElementSelector;
   raw?: string;
   navigate?: string;
   openLink?: string;
+  eraseText?: number;
+  pressKey?: string;
+  extendedWaitUntil?: { visible?: ElementSelector; notVisible?: ElementSelector; timeout?: number };
+  assertTrue?: string;
+  setLocation?: { latitude: number; longitude: number };
+  copyTextFrom?: string | ElementSelector;
+  pasteText?: true;
+  setClipboard?: string;
+  assertScreenshot?: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number };
 }
 
 interface ScannedScenario {
@@ -29,6 +55,7 @@ interface ScannedScenario {
   filePath: string;
   steps: TestStep[];
   env?: Record<string, string>;
+  launchOptions?: any;
 }
 
 interface ScannedVariant {
@@ -46,6 +73,58 @@ interface ScannedScenarioWithVariants extends ScannedScenario {
   variants: ScannedVariant[];
   flow: ScannedFlowStep[];
   env: Record<string, string>;
+}
+
+function parseSelectorObject(objNode: any): any {
+  const result: any = {};
+  for (const prop of objNode.properties) {
+    if (prop.type !== 'ObjectProperty' || prop.key.type !== 'Identifier') continue;
+    const key = prop.key.name;
+    if (prop.value.type === 'StringLiteral') {
+      result[key] = prop.value.value;
+    } else if (prop.value.type === 'NumericLiteral') {
+      result[key] = prop.value.value;
+    } else if (prop.value.type === 'BooleanLiteral') {
+      result[key] = prop.value.value;
+    } else if (prop.value.type === 'ObjectExpression') {
+      result[key] = parseSelectorObject(prop.value);
+    } else if (prop.value.type === 'ArrayExpression') {
+      result[key] = prop.value.elements
+        .filter((el: any) => el?.type === 'StringLiteral' || el?.type === 'ObjectExpression')
+        .map((el: any) => el.type === 'StringLiteral' ? el.value : parseSelectorObject(el));
+    }
+  }
+  return result;
+}
+
+function parseExtendedWaitObject(objNode: any): any {
+  const result: any = {};
+  for (const prop of objNode.properties) {
+    if (prop.type !== 'ObjectProperty' || prop.key.type !== 'Identifier') continue;
+    const key = prop.key.name;
+    if (key === 'timeout' && prop.value.type === 'NumericLiteral') {
+      result.timeout = prop.value.value;
+    } else if ((key === 'visible' || key === 'notVisible') && (prop.value.type === 'StringLiteral' || prop.value.type === 'ObjectExpression')) {
+      result[key] = prop.value.type === 'StringLiteral' ? prop.value.value : parseSelectorObject(prop.value);
+    }
+  }
+  return result;
+}
+
+function parseAssertScreenshotObject(objNode: any): any {
+  const result: any = {};
+  for (const prop of objNode.properties) {
+    if (prop.type !== 'ObjectProperty' || prop.key.type !== 'Identifier') continue;
+    const key = prop.key.name;
+    if (prop.value.type === 'StringLiteral') {
+      if (key === 'path') result.path = prop.value.value;
+    } else if (prop.value.type === 'NumericLiteral' && key === 'thresholdPercentage') {
+      result.thresholdPercentage = prop.value.value;
+    } else if (key === 'cropOn' && prop.value.type === 'ObjectExpression') {
+      result.cropOn = parseSelectorObject(prop.value);
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function extractTestSteps(testFnNode: any): TestStep[] {
@@ -80,25 +159,22 @@ function extractTestSteps(testFnNode: any): TestStep[] {
         case 'tap':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ tap: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ tap: parseSelectorObject(args[0]) });
           }
           break;
         case 'see':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ see: args[0].value });
           } else if (args[0]?.type === 'ObjectExpression') {
-            const obj: { id?: string; text?: string } = {};
-            for (const prop of args[0].properties) {
-              if (prop.type === 'ObjectProperty' && prop.key.type === 'Identifier' && prop.value.type === 'StringLiteral') {
-                if (prop.key.name === 'id') obj.id = prop.value.value;
-                if (prop.key.name === 'text') obj.text = prop.value.value;
-              }
-            }
-            if (obj.id) steps.push({ see: obj as { id: string; text?: string } });
+            steps.push({ see: parseSelectorObject(args[0]) });
           }
           break;
         case 'notSee':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ notSee: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ notSee: parseSelectorObject(args[0]) });
           }
           break;
         case 'type':
@@ -131,6 +207,64 @@ function extractTestSteps(testFnNode: any): TestStep[] {
         case 'longPress':
           if (args[0]?.type === 'StringLiteral') {
             steps.push({ longPress: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ longPress: parseSelectorObject(args[0]) });
+          }
+          break;
+        case 'doubleTap':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ doubleTap: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ doubleTap: parseSelectorObject(args[0]) });
+          }
+          break;
+        case 'eraseText':
+          if (args[0]?.type === 'NumericLiteral') {
+            steps.push({ eraseText: args[0].value });
+          } else {
+            steps.push({ eraseText: undefined });
+          }
+          break;
+        case 'pressKey':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ pressKey: args[0].value });
+          }
+          break;
+        case 'extendedWaitUntil':
+          if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ extendedWaitUntil: parseExtendedWaitObject(args[0]) });
+          }
+          break;
+        case 'assertTrue':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ assertTrue: args[0].value });
+          }
+          break;
+        case 'setLocation':
+          if (args[0]?.type === 'NumericLiteral' && args[1]?.type === 'NumericLiteral') {
+            steps.push({ setLocation: { latitude: args[0].value, longitude: args[1].value } });
+          }
+          break;
+        case 'copyTextFrom':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ copyTextFrom: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ copyTextFrom: parseSelectorObject(args[0]) });
+          }
+          break;
+        case 'pasteText':
+          steps.push({ pasteText: true });
+          break;
+        case 'setClipboard':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ setClipboard: args[0].value });
+          }
+          break;
+        case 'assertScreenshot':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ assertScreenshot: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ assertScreenshot: parseAssertScreenshotObject(args[0]) });
           }
           break;
         case 'raw':
@@ -404,7 +538,35 @@ export function scanScenarios(source: string, filePath: string): ScannedScenario
         }
       }
 
-      results.push({ id, filePath, steps, variants, flow, env });
+      // Parse launchOptions
+      let launchOptions: any;
+      const launchProp = firstArg.properties.find(
+        (p: any) =>
+          p.type === 'ObjectProperty' &&
+          p.key.type === 'Identifier' &&
+          p.key.name === 'launchOptions' &&
+          p.value.type === 'ObjectExpression',
+      );
+      if (launchProp) {
+        launchOptions = {};
+        for (const prop of launchProp.value.properties) {
+          if (prop.type !== 'ObjectProperty') continue;
+          const k = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value;
+          if (prop.value.type === 'BooleanLiteral') launchOptions[k] = prop.value.value;
+          if (prop.value.type === 'ObjectExpression') {
+            const perms: any = {};
+            for (const pp of prop.value.properties) {
+              if (pp.type === 'ObjectProperty' && pp.value.type === 'StringLiteral') {
+                const pk = pp.key.type === 'Identifier' ? pp.key.name : pp.key.value;
+                perms[pk] = pp.value.value;
+              }
+            }
+            launchOptions[k] = perms;
+          }
+        }
+      }
+
+      results.push({ id, filePath, steps, variants, flow, env, launchOptions });
     },
   });
 
@@ -459,21 +621,49 @@ function validateYaml(yaml: string, scenarioId: string): void {
   }
 }
 
+function formatSelector(sel: string | ElementSelector | undefined): string {
+  if (!sel) return '';
+  if (typeof sel === 'string') {
+    return `    text: ${escapeYamlString(sel)}`;
+  }
+  const lines: string[] = [];
+  if (sel.id) lines.push(`    id: ${escapeYamlString(sel.id)}`);
+  if (sel.text) lines.push(`    text: ${escapeYamlString(sel.text)}`);
+  if (sel.index !== undefined) lines.push(`    index: ${sel.index}`);
+  if (sel.enabled !== undefined) lines.push(`    enabled: ${sel.enabled}`);
+  if (sel.checked !== undefined) lines.push(`    checked: ${sel.checked}`);
+  if (sel.focused !== undefined) lines.push(`    focused: ${sel.focused}`);
+  if (sel.selected !== undefined) lines.push(`    selected: ${sel.selected}`);
+  if (sel.point) lines.push(`    point: ${escapeYamlString(sel.point)}`);
+  if (sel.below) lines.push(`    below: ${typeof sel.below === 'string' ? escapeYamlString(sel.below) : '\n' + formatSelector(sel.below).replace(/^    /gm, '      ')}`);
+  if (sel.above) lines.push(`    above: ${typeof sel.above === 'string' ? escapeYamlString(sel.above) : '\n' + formatSelector(sel.above).replace(/^    /gm, '      ')}`);
+  if (sel.leftOf) lines.push(`    leftOf: ${typeof sel.leftOf === 'string' ? escapeYamlString(sel.leftOf) : '\n' + formatSelector(sel.leftOf).replace(/^    /gm, '      ')}`);
+  if (sel.rightOf) lines.push(`    rightOf: ${typeof sel.rightOf === 'string' ? escapeYamlString(sel.rightOf) : '\n' + formatSelector(sel.rightOf).replace(/^    /gm, '      ')}`);
+  if (sel.containsChild) {
+    const child = typeof sel.containsChild === 'string' ? sel.containsChild : '';
+    lines.push(`    containsChild: ${escapeYamlString(child)}`);
+  }
+  return lines.join('\n');
+}
+
 function stepToYaml(step: TestStep, scheme: string = 'preflight'): string {
   if (step.tap) {
-    return `- tapOn:\n    id: ${escapeYamlString(step.tap)}`;
+    if (typeof step.tap === 'string') {
+      return `- tapOn:\n    id: ${escapeYamlString(step.tap)}`;
+    }
+    return `- tapOn:\n${formatSelector(step.tap)}`;
   }
   if (step.see !== undefined) {
     if (typeof step.see === 'string') {
       return `- assertVisible:\n    text: ${escapeYamlString(step.see)}`;
     }
-    const lines = [`- assertVisible:`];
-    if (step.see.id) lines.push(`    id: ${escapeYamlString(step.see.id)}`);
-    if (step.see.text) lines.push(`    text: ${escapeYamlString(step.see.text)}`);
-    return lines.join('\n');
+    return `- assertVisible:\n${formatSelector(step.see)}`;
   }
   if (step.notSee) {
-    return `- assertNotVisible:\n    text: ${escapeYamlString(step.notSee)}`;
+    if (typeof step.notSee === 'string') {
+      return `- assertNotVisible:\n    text: ${escapeYamlString(step.notSee)}`;
+    }
+    return `- assertNotVisible:\n${formatSelector(step.notSee)}`;
   }
   if (step.type) {
     return `- tapOn:\n    id: ${escapeYamlString(step.type[0])}\n- inputText: ${escapeYamlString(step.type[1])}`;
@@ -496,7 +686,75 @@ function stepToYaml(step: TestStep, scheme: string = 'preflight'): string {
     return `- hideKeyboard`;
   }
   if (step.longPress) {
-    return `- longPressOn:\n    id: ${escapeYamlString(step.longPress)}`;
+    if (typeof step.longPress === 'string') {
+      return `- longPressOn:\n    id: ${escapeYamlString(step.longPress)}`;
+    }
+    return `- longPressOn:\n${formatSelector(step.longPress)}`;
+  }
+  if (step.doubleTap) {
+    if (typeof step.doubleTap === 'string') {
+      return `- doubleTapOn:\n    id: ${escapeYamlString(step.doubleTap)}`;
+    }
+    return `- doubleTapOn:\n${formatSelector(step.doubleTap)}`;
+  }
+  if (step.eraseText !== undefined) {
+    return step.eraseText === undefined || step.eraseText === null
+      ? `- eraseText`
+      : `- eraseText: ${step.eraseText}`;
+  }
+  if (step.pressKey) {
+    return `- pressKey: ${escapeYamlString(step.pressKey)}`;
+  }
+  if (step.extendedWaitUntil) {
+    const w = step.extendedWaitUntil;
+    const lines = ['- extendedWaitUntil:'];
+    if (w.visible) {
+      lines.push('    visible:');
+      if (typeof w.visible === 'string') lines.push(`      text: ${escapeYamlString(w.visible)}`);
+      else lines.push(formatSelector(w.visible).replace(/^    /gm, '      '));
+    }
+    if (w.notVisible) {
+      lines.push('    notVisible:');
+      if (typeof w.notVisible === 'string') lines.push(`      text: ${escapeYamlString(w.notVisible)}`);
+      else lines.push(formatSelector(w.notVisible).replace(/^    /gm, '      '));
+    }
+    if (w.timeout) lines.push(`    timeout: ${w.timeout}`);
+    return lines.join('\n');
+  }
+  if (step.assertTrue) {
+    return `- assertTrue: ${escapeYamlString(step.assertTrue)}`;
+  }
+  if (step.setLocation) {
+    return `- setLocation:\n    latitude: ${step.setLocation.latitude}\n    longitude: ${step.setLocation.longitude}`;
+  }
+  if (step.copyTextFrom) {
+    if (typeof step.copyTextFrom === 'string') {
+      return `- copyTextFrom:\n    id: ${escapeYamlString(step.copyTextFrom)}`;
+    }
+    return `- copyTextFrom:\n${formatSelector(step.copyTextFrom)}`;
+  }
+  if (step.pasteText) {
+    return `- pasteText`;
+  }
+  if (step.setClipboard) {
+    return `- setClipboard: ${escapeYamlString(step.setClipboard)}`;
+  }
+  if (step.assertScreenshot !== undefined) {
+    if (typeof step.assertScreenshot === 'string') {
+      return `- assertScreenshot: ${escapeYamlString(step.assertScreenshot)}`;
+    }
+    const opts = step.assertScreenshot;
+    const lines = ['- assertScreenshot:'];
+    if (opts.path) lines.push(`    path: ${escapeYamlString(opts.path)}`);
+    if (opts.cropOn) {
+      lines.push('    cropOn:');
+      if (typeof opts.cropOn === 'string') lines.push(`      text: ${escapeYamlString(opts.cropOn)}`);
+      else lines.push(formatSelector(opts.cropOn).replace(/^    /gm, '      '));
+    }
+    if (opts.thresholdPercentage !== undefined) {
+      lines.push(`    thresholdPercentage: ${opts.thresholdPercentage}`);
+    }
+    return lines.join('\n');
   }
   if (step.navigate !== undefined) {
     return `- openLink:\n    link: ${escapeYamlString(routeToLink(step.navigate, scheme))}`;
@@ -516,6 +774,7 @@ export function generateYaml(
   snapshotsDir: string = '.maestro/snapshots',
   env?: Record<string, string>,
   scheme: string = 'preflight',
+  launchOptions?: any,
 ): string {
   // For variants, the assertVisible uses the base ID (the testID on the wrapper View)
   const baseId = scenario.id.includes('/') ? scenario.id.split('/')[0]! : scenario.id;
@@ -536,10 +795,26 @@ export function generateYaml(
     }
   }
 
+  // Build launchApp block with options
+  const launchLines = [`- launchApp:`];
+  const lo = (scenario as any).launchOptions || launchOptions || {};
+  if (lo.clearState !== undefined) launchLines.push(`    clearState: ${lo.clearState}`);
+  if (lo.clearKeychain !== undefined) launchLines.push(`    clearKeychain: ${lo.clearKeychain}`);
+  if (lo.stopApp !== undefined) launchLines.push(`    stopApp: ${lo.stopApp}`);
+  if (lo.permissions && typeof lo.permissions === 'object') {
+    launchLines.push(`    permissions:`);
+    for (const [perm, val] of Object.entries(lo.permissions)) {
+      launchLines.push(`      ${perm}: ${val}`);
+    }
+  }
+  // Default to previous behavior if nothing specified
+  if (launchLines.length === 1) {
+    launchLines.push(`    stopApp: false`);
+  }
+
   lines.push(
     `---`,
-    `- launchApp:`,
-    `    stopApp: false`,
+    ...launchLines,
     ``,
     `- openLink:`,
     `    link: ${escapeYamlString('preflight://scenario/' + scenario.id)}`,
@@ -591,10 +866,23 @@ export function generateFlowYaml(
     }
   }
 
+  // Build launchApp block with options (flow)
+  const flowLaunchLines = [`- launchApp:`];
+  const flo = (scenario as any).launchOptions || {};
+  if (flo.clearState !== undefined) flowLaunchLines.push(`    clearState: ${flo.clearState}`);
+  if (flo.clearKeychain !== undefined) flowLaunchLines.push(`    clearKeychain: ${flo.clearKeychain}`);
+  if (flo.stopApp !== undefined) flowLaunchLines.push(`    stopApp: ${flo.stopApp}`);
+  if (flo.permissions && typeof flo.permissions === 'object') {
+    flowLaunchLines.push(`    permissions:`);
+    for (const [perm, val] of Object.entries(flo.permissions)) {
+      flowLaunchLines.push(`      ${perm}: ${val}`);
+    }
+  }
+  if (flowLaunchLines.length === 1) flowLaunchLines.push(`    stopApp: false`);
+
   lines.push(
     `---`,
-    `- launchApp:`,
-    `    stopApp: false`,
+    ...flowLaunchLines,
     ``,
     `# Start: ${scenario.id}`,
     `- openLink:`,
@@ -749,7 +1037,7 @@ export function runGenerate(projectRoot: string, config: PreflightConfig, filter
 
     fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
 
-    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env, config.scheme);
+    const yaml = generateYaml(s, config.appId, config.snapshotsDir, s.env, config.scheme, s.launchOptions);
     validateYaml(yaml, s.id);
     const exists = fs.existsSync(yamlPath);
     fs.writeFileSync(yamlPath, yaml);
