@@ -40,6 +40,9 @@ export type TestStep =
   | { pasteText: true }
   | { setClipboard: string }
   | { assertScreenshot: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number } }
+  | { assertWithAI: string }
+  | { assertNoDefectsWithAI: true }
+  | { extractTextWithAI: string | { query: string; outputVariable?: string } }
   | { raw: string };
 
 export interface TestHelpers {
@@ -65,6 +68,9 @@ export interface TestHelpers {
   pasteText: () => TestStep;
   setClipboard: (text: string) => TestStep;
   assertScreenshot: (nameOrOpts: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number }) => TestStep;
+  assertWithAI: (assertion: string) => TestStep;
+  assertNoDefectsWithAI: () => TestStep;
+  extractTextWithAI: (query: string | { query: string; outputVariable?: string }) => TestStep;
   raw: (yaml: string) => TestStep;
 }
 
@@ -91,6 +97,9 @@ export const testHelpers: TestHelpers = {
   pasteText: () => ({ pasteText: true }),
   setClipboard: (text) => ({ setClipboard: text }),
   assertScreenshot: (nameOrOpts) => ({ assertScreenshot: nameOrOpts }),
+  assertWithAI: (assertion) => ({ assertWithAI: assertion }),
+  assertNoDefectsWithAI: () => ({ assertNoDefectsWithAI: true }),
+  extractTextWithAI: (query) => ({ extractTextWithAI: query }),
   raw: (yaml) => ({ raw: yaml }),
 };
 

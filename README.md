@@ -89,6 +89,9 @@ export default scenario(
   - `setLocation(48.85, 2.35)`
   - `copyTextFrom(selector)` / `pasteText()` / `setClipboard('foo')`
   - `assertScreenshot('login')` or `assertScreenshot({ path: '...', cropOn: 'main', thresholdPercentage: 98 })`
+  - `assertWithAI("Le bouton Se connecter est visible et le champ email est vide")` — assertion visuelle par IA (expérimental)
+  - `assertNoDefectsWithAI()` — vérifie qu'il n'y a pas de défauts UI évidents (via IA)
+  - `extractTextWithAI("Le code 2FA à 6 chiffres")` — extrait du texte via IA et le stocke dans une variable
   - `wait(2000)`, `scroll(...)`, `swipe(...)`, `back()`, `hideKeyboard()`, `navigate()`, `openLink()`
   - `raw('...')` escape hatch still available
 

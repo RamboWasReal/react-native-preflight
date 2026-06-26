@@ -48,6 +48,9 @@ interface TestStep {
   pasteText?: true;
   setClipboard?: string;
   assertScreenshot?: string | { path?: string; cropOn?: ElementSelector; thresholdPercentage?: number };
+  assertWithAI?: string;
+  assertNoDefectsWithAI?: true;
+  extractTextWithAI?: string | { query: string; outputVariable?: string };
 }
 
 interface ScannedScenario {
@@ -125,6 +128,19 @@ function parseAssertScreenshotObject(objNode: any): any {
     }
   }
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function parseExtractTextObject(objNode: any): any {
+  const result: any = {};
+  for (const prop of objNode.properties) {
+    if (prop.type !== 'ObjectProperty' || prop.key.type !== 'Identifier') continue;
+    const key = prop.key.name;
+    if (prop.value.type === 'StringLiteral') {
+      if (key === 'query') result.query = prop.value.value;
+      if (key === 'outputVariable') result.outputVariable = prop.value.value;
+    }
+  }
+  return result;
 }
 
 function extractTestSteps(testFnNode: any): TestStep[] {
@@ -265,6 +281,21 @@ function extractTestSteps(testFnNode: any): TestStep[] {
             steps.push({ assertScreenshot: args[0].value });
           } else if (args[0]?.type === 'ObjectExpression') {
             steps.push({ assertScreenshot: parseAssertScreenshotObject(args[0]) });
+          }
+          break;
+        case 'assertWithAI':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ assertWithAI: args[0].value });
+          }
+          break;
+        case 'assertNoDefectsWithAI':
+          steps.push({ assertNoDefectsWithAI: true });
+          break;
+        case 'extractTextWithAI':
+          if (args[0]?.type === 'StringLiteral') {
+            steps.push({ extractTextWithAI: args[0].value });
+          } else if (args[0]?.type === 'ObjectExpression') {
+            steps.push({ extractTextWithAI: parseExtractTextObject(args[0]) });
           }
           break;
         case 'raw':
@@ -599,7 +630,7 @@ const MAESTRO_COMMANDS = new Set([
   'tapOn', 'doubleTapOn', 'longPressOn', 'swipe', 'scroll',
   'scrollUntilVisible', 'inputText', 'eraseText', 'pressKey',
   'openLink', 'navigate', 'assertVisible', 'assertNotVisible',
-  'assertTrue', 'assertWithAI', 'takeScreenshot', 'setLocation',
+  'assertTrue', 'assertWithAI', 'assertNoDefectsWithAI', 'extractTextWithAI', 'takeScreenshot', 'setLocation',
   'repeat', 'runFlow', 'runScript', 'waitForAnimationToEnd',
   'extendedWaitUntil', 'evalScript', 'back', 'hideKeyboard',
   'copyTextFrom', 'pasteText', 'addMedia', 'startRecording',
@@ -754,6 +785,22 @@ function stepToYaml(step: TestStep, scheme: string = 'preflight'): string {
     if (opts.thresholdPercentage !== undefined) {
       lines.push(`    thresholdPercentage: ${opts.thresholdPercentage}`);
     }
+    return lines.join('\n');
+  }
+  if (step.assertWithAI) {
+    return `- assertWithAI:\n    assertion: ${escapeYamlString(step.assertWithAI)}`;
+  }
+  if (step.assertNoDefectsWithAI) {
+    return `- assertNoDefectsWithAI`;
+  }
+  if (step.extractTextWithAI) {
+    if (typeof step.extractTextWithAI === 'string') {
+      return `- extractTextWithAI: ${escapeYamlString(step.extractTextWithAI)}`;
+    }
+    const e = step.extractTextWithAI;
+    const lines = ['- extractTextWithAI:'];
+    if (e.query) lines.push(`    query: ${escapeYamlString(e.query)}`);
+    if (e.outputVariable) lines.push(`    outputVariable: ${escapeYamlString(e.outputVariable)}`);
     return lines.join('\n');
   }
   if (step.navigate !== undefined) {
